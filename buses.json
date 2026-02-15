@@ -1,0 +1,226 @@
+[
+    {
+        "name": "Bus 1",
+        "operator": "RTN",
+        "bus_no": "MP09DL9990",
+        "device_id": "9156636406",
+        "auth": "f84b89d6e76266a897096b28b3ced2954f6c2091cabd151042d59b10722ee780afba22c0d6d3cae49230c8832970790c"
+    },
+    {
+        "name": "Bus 2",
+        "operator": "RTN",
+        "bus_no": "MP09ZG9990",
+        "device_id": "5754120613332",
+        "auth": "f84b89d6e76266a897096b28b3ced2950c82567074c202cffa22538393fa2892afba22c0d6d3cae49230c8832970790c"
+    },
+    {
+        "name": "Bus 3",
+        "operator": "RTN",
+        "bus_no": "MP09ZD9990",
+        "device_id": "5754123540361",
+        "auth": "f84b89d6e76266a897096b28b3ced29533158bbae3a8a34e33f6a3ef119c5e2eafba22c0d6d3cae49230c8832970790c"
+    },
+    {
+        "name": "Bus 4",
+        "operator": "RTN",
+        "bus_no": "MP09AZ9990",
+        "device_id": "5754127590910",
+        "auth": "f84b89d6e76266a897096b28b3ced295c712326d27c99ce76e74303a0045bf75afba22c0d6d3cae49230c8832970790c"
+    },
+    {
+        "name": "Bus 5",
+        "operator": "RTN",
+        "bus_no": "MP09AZ0009",
+        "device_id": "5754127590912",
+        "auth": "f84b89d6e76266a897096b28b3ced295ef6bdaa542e6d5fe7e34850ae1e04abaafba22c0d6d3cae49230c8832970790c"
+    },
+    {
+        "name": "Bus 6",
+        "operator": "RTN",
+        "bus_no": "MP09DK9990",
+        "device_id": "5754121185026",
+        "auth": "f84b89d6e76266a897096b28b3ced295b3e66788d56611bdd026fe6bc5c4007aafba22c0d6d3cae49230c8832970790c"
+    },
+    {
+        "name": "Bus 7",
+        "operator": "RTN",
+        "bus_no": "MP09DU9990",
+        "device_id": "5754121735989",
+        "auth": "f84b89d6e76266a897096b28b3ced295d7597488389f8e6311350bc97cb55f2aafba22c0d6d3cae49230c8832970790c"
+    },
+    {
+        "name": "Bus 8",
+        "operator": "RTN",
+        "bus_no": "MP09ZM9990",
+        "device_id": "5754120090413",
+        "auth": "f84b89d6e76266a897096b28b3ced2951170caee2804374a32c86e40c514afc1afba22c0d6d3cae49230c8832970790c"
+    },
+    {
+        "name": "Bus 9",
+        "operator": "RTN",
+        "bus_no": "MP09AS9990",
+        "device_id": "869305071342193_MP09AS9990",
+        "auth": "f84b89d6e76266a897096b28b3ced29500c89ae5f1f6402e78489defc9726e0aafba22c0d6d3cae49230c8832970790c"
+    },
+    {
+        "name": "Bus 10",
+        "operator": "RTN",
+        "bus_no": "MP09DF0999",
+        "device_id": "5754120090409",
+        "auth": "f84b89d6e76266a897096b28b3ced2951dcfc5e2f749bc7bb9786a187ec12f16afba22c0d6d3cae49230c8832970790c"
+    },
+    {
+        "name": "Bus 11",
+        "operator": "RTN",
+        "bus_no": "MP09DE0999",
+        "device_id": "5754121185025",
+        "auth": "f84b89d6e76266a897096b28b3ced295e77a3039b7f194498abe2a8c9e5b0c8bafba22c0d6d3cae49230c8832970790c"
+    },
+    {
+        "name": "Bus 12",
+        "operator": "RTN",
+        "bus_no": "MP09ZL9990",
+        "device_id": "5754120172817",
+        "auth": "f84b89d6e76266a897096b28b3ced29541bcdb87e4376446f8ca72c427778d44afba22c0d6d3cae49230c8832970790c"
+    },
+    {
+        "name": "Bus 13",
+        "operator": "RTN",
+        "bus_no": "MP09ZX9990",
+        "device_id": "5754120022621",
+        "auth": "f84b89d6e76266a897096b28b3ced295e911b758f8cc64e141549aec1474af4cafba22c0d6d3cae49230c8832970790c"
+    },
+    {
+        "name": "Bus 14",
+        "operator": "RTN",
+        "bus_no": "MP09DT9990",
+        "device_id": "5754121735986",
+        "auth": "f84b89d6e76266a897096b28b3ced295f721d476e332bffc5bbb2098a76397c3afba22c0d6d3cae49230c8832970790c"
+    },
+    {
+        "name": "Bus 15",
+        "operator": "RTN",
+        "bus_no": "MP09PA3303",
+        "device_id": "5754120613331",
+        "auth": "f84b89d6e76266a897096b28b3ced29500d1ef75b4ef5af66393cd6658b35fd8afba22c0d6d3cae49230c8832970790c"
+    },
+    {
+        "name": "Bus 16",
+        "operator": "RTN",
+        "bus_no": "MP09AH9990",
+        "device_id": "5754121735991",
+        "auth": "f84b89d6e76266a897096b28b3ced2958e9ca4c8fa030962ddf6407c5eb08d95afba22c0d6d3cae49230c8832970790c"
+    },
+    {
+        "name": "Bus 17",
+        "operator": "RTN",
+        "bus_no": "MP09ZU9990",
+        "device_id": "9156635463",
+        "auth": "f84b89d6e76266a897096b28b3ced29583744b6f7fd4a739b1671da3472dd674afba22c0d6d3cae49230c8832970790c"
+    },
+    {
+        "name": "Bus 18",
+        "operator": "RTN",
+        "bus_no": "MP09AM9909",
+        "device_id": "5754120359991",
+        "auth": "f84b89d6e76266a897096b28b3ced295262292dcc59d3b7452059684de30b91bafba22c0d6d3cae49230c8832970790c"
+    },
+    {
+        "name": "Bus 19",
+        "operator": "RTN",
+        "bus_no": "MP09BK9990",
+        "device_id": "5754120613329",
+        "auth": "f84b89d6e76266a897096b28b3ced2957e40d9da466a69f867e3449f92e9a789afba22c0d6d3cae49230c8832970790c"
+    },
+    {
+        "name": "Bus 20",
+        "operator": "RTN",
+        "bus_no": "MP09PA3033",
+        "device_id": "5754120613330",
+        "auth": "f84b89d6e76266a897096b28b3ced2952fdc135029d482bc3203f22ba91e25c4afba22c0d6d3cae49230c8832970790c"
+    },
+    {
+        "name": "Bus 21",
+        "operator": "RTN",
+        "bus_no": "MP09AH0009",
+        "device_id": "5754121735988",
+        "auth": "f84b89d6e76266a897096b28b3ced2951958082cfd1b7b3b78660fa80cd161f8afba22c0d6d3cae49230c8832970790c"
+    },
+    {
+        "name": "Bus 22",
+        "operator": "RTN",
+        "bus_no": "MP09AM9990",
+        "device_id": "5754121735992",
+        "auth": "f84b89d6e76266a897096b28b3ced2950d7d16d98ba56a266fdf4ca4410bae4dafba22c0d6d3cae49230c8832970790c"
+    },
+    {
+        "name": "Bus 23",
+        "operator": "RTN",
+        "bus_no": "MP09DG0009",
+        "device_id": "5754120172859",
+        "auth": "f84b89d6e76266a897096b28b3ced2955efa6f2df4c7bb5579066f447f3a1d65afba22c0d6d3cae49230c8832970790c"
+    },
+    {
+        "name": "Bus 24",
+        "operator": "RTN",
+        "bus_no": "MP09ZT9990",
+        "device_id": "5754123540359",
+        "auth": "f84b89d6e76266a897096b28b3ced2954c7447107f20d0d8932646b14a567ba3afba22c0d6d3cae49230c8832970790c"
+    },
+    {
+        "name": "Bus 25",
+        "operator": "RTN",
+        "bus_no": "MP09DS0999",
+        "device_id": "5754120089458",
+        "auth": "f84b89d6e76266a897096b28b3ced295f20e415b32b4b3791a089a8ec26982c0afba22c0d6d3cae49230c8832970790c"
+    },
+    {
+        "name": "Bus 26",
+        "operator": "RTN",
+        "bus_no": "MP09ZT0099",
+        "device_id": "866718065690653_MP09ZT0099",
+        "auth": "f84b89d6e76266a897096b28b3ced295c398846f9d96f7c6649f20959de3183cafba22c0d6d3cae49230c8832970790c"
+    },
+    {
+        "name": "Bus 27",
+        "operator": "RTN",
+        "bus_no": "MP09AY9990",
+        "device_id": "5754127590911",
+        "auth": "f84b89d6e76266a897096b28b3ced295303ee13af7b3e7c719aa8eb827515ca1afba22c0d6d3cae49230c8832970790c"
+    },
+    {
+        "name": "Bus 28",
+        "operator": "RTN",
+        "bus_no": "MP09PA3330",
+        "device_id": "5754123540363",
+        "auth": "f84b89d6e76266a897096b28b3ced2958246dc0315e3d5f442477b4ca19efdc8afba22c0d6d3cae49230c8832970790c"
+    },
+    {
+        "name": "Bus 29",
+        "operator": "RTN",
+        "bus_no": "MP09ZY9990",
+        "device_id": "5754120442883",
+        "auth": "f84b89d6e76266a897096b28b3ced295d9d3682216187099d4f97bc04fa3dbebafba22c0d6d3cae49230c8832970790c"
+    },
+    {
+        "name": "Bus 30",
+        "operator": "RTN",
+        "bus_no": "MP09DP0666",
+        "device_id": "5754121735990",
+        "auth": "f84b89d6e76266a897096b28b3ced295b9697dec990d4e9071a6172ee709c6c9afba22c0d6d3cae49230c8832970790c"
+    },
+    {
+        "name": "Bus 31",
+        "operator": "RTN",
+        "bus_no": "MP09DD0666",
+        "device_id": "5754120172862",
+        "auth": "f84b89d6e76266a897096b28b3ced2958cb23b58decd34d6dda666554b5094a3afba22c0d6d3cae49230c8832970790c"
+    },
+    {
+        "name": "Bus 32",
+        "operator": "RTN",
+        "bus_no": "MP09DA9990",
+        "device_id": "5754127589892",
+        "auth": "f84b89d6e76266a897096b28b3ced29528dac43fec79ef0a976bd42c5aadddecafba22c0d6d3cae49230c8832970790c"
+    }
+]
