@@ -229,6 +229,12 @@
         "bus_no": "MP09DH9990",
         "tracking_type": "websocket",
         "serviceNo": "rtnindore-varanasi-0515pm"
+    },
+    {
+        "name": "Indore Pune 0615PM",
+        "operator": "RTN",
+        "bus_no": "MP09AP9990",
+        "tracking_type": "websocket",
+        "serviceNo": "rtnindore-pune-0615pm"
     }
-
 ]
