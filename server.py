@@ -1,3 +1,4 @@
+
 import requests
 import json
 import os
@@ -25,6 +26,8 @@ IDLE_THRESHOLD = 120          # 2 minutes idle → LONG_IDLE
 RESUME_DISTANCE_KM = 0.3      # must move at least 300m
 END_CONFIRM_THRESHOLD = 3600  # 1 hour idle → end journey
 BUSES_FILE = "buses.json"
+ws_started = {}
+
 print("DB exists:", os.path.exists("/data/fleet.db"))
 
 def load_buses():
@@ -51,6 +54,7 @@ fleet_state = {}
 
 def init_db():
     conn = sqlite3.connect(DB_FILE)
+    conn.execute("PRAGMA journal_mode=WAL;")
     c = conn.cursor()
 
     c.execute("""
@@ -140,8 +144,14 @@ def tracking_loop():
             buses = load_buses()
 
             for bus in buses:
+                tracking_type = bus.get("tracking_type", "trackapp")
 
-                bus_no = bus["bus_no"]
+                if tracking_type == "websocket":
+                    bus_no = bus.get("serviceNo")
+                    if not bus_no:
+                        continue
+                else:
+                    bus_no = bus["bus_no"]
 
                 tracking_type = bus.get(
                     "tracking_type",
@@ -154,10 +164,11 @@ def tracking_loop():
                 # =====================
 
                 if tracking_type == "websocket":
+                    service_no = bus.get("serviceNo")
 
-                    if not bus.get("ws_started"):
+                    if service_no not in ws_started:
 
-                        bus["ws_started"] = True
+                        ws_started[service_no] = True
 
                         threading.Thread(
                             target=websocket_listener,
@@ -191,13 +202,13 @@ def tracking_loop():
                     "v": bus_no,
                     "g": device_id
                 }
-
-
                 response = requests.post(
                     url,
                     headers=headers,
-                    json=payload
+                    json=payload,
+                    timeout=10
                 )
+
 
 
                 data = response.json()
@@ -267,9 +278,11 @@ def tracking_loop():
 
 
 def websocket_listener(bus):
-
-    bus_no = bus["bus_no"]
     service_no = bus.get("serviceNo")
+
+    # Use serviceNo as primary ID for websocket tracking
+    bus_no = service_no
+
 
     if not service_no:
         print(f"[WS] {bus_no} skipped, no serviceNo")
@@ -300,6 +313,10 @@ def websocket_listener(bus):
 
 
             position = data.get("vehicleInfo", {}).get("position", {})
+            vehicle_number = data.get("vehicleInfo", {}).get("registrationNumber")
+            # Optional: update runtime bus_no display
+            if vehicle_number:
+                print(f"[WS VEHICLE] {service_no} using vehicle {vehicle_number}")
 
             if not position:
                 return
@@ -363,10 +380,19 @@ def websocket_listener(bus):
 
         print(f"[WS CLOSED] {bus_no}")
 
-        # AUTO reconnect
-        time.sleep(5)
+        while True:
 
-        websocket_listener(bus)
+            try:
+
+                time.sleep(5)
+
+                websocket_listener(bus)
+
+                break
+
+            except:
+
+                continue
 
 
     ws = websocket.WebSocketApp(
@@ -389,7 +415,19 @@ def home():
 def get_buses():
     with open(BUS_FILE) as f:
         buses = json.load(f)
-    return jsonify([b["bus_no"] for b in buses])
+    result = []
+
+    for b in buses:
+
+        if b.get("tracking_type") == "websocket":
+
+            result.append(b.get("serviceNo"))
+
+        else:
+
+            result.append(b.get("bus_no"))
+
+    return jsonify(result)
 
 @app.route("/dates/<bus_no>")
 def get_dates(bus_no):
