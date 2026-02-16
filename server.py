@@ -24,7 +24,23 @@ MOVEMENT_THRESHOLD = 5        # speed > 5 km/h means moving
 IDLE_THRESHOLD = 120          # 2 minutes idle → LONG_IDLE
 RESUME_DISTANCE_KM = 0.3      # must move at least 300m
 END_CONFIRM_THRESHOLD = 3600  # 1 hour idle → end journey
+BUSES_FILE = "buses.json"
 
+def load_buses():
+
+    try:
+
+        with open(BUSES_FILE, "r") as f:
+
+            buses = json.load(f)
+
+            return buses
+
+    except Exception as e:
+
+        print("Error loading buses.json:", e)
+
+        return []
 
 
 fleet_state = {}
