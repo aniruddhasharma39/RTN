@@ -5,6 +5,7 @@ import time
 import threading
 import random
 import sqlite3
+import websocket
 from math import radians, sin, cos, sqrt, atan2
 from datetime import datetime, timedelta
 from flask import Flask, render_template, jsonify, request
@@ -112,15 +113,94 @@ def end_journey(journey_id, timestamp):
 # ================= TRACKING LOOP =================
 
 def tracking_loop():
+
+    print("Tracking loop started")
+
     while True:
+
         try:
-            with open(BUS_FILE) as f:
-                buses = json.load(f)
+
+            buses = load_buses()
 
             for bus in buses:
-                print("Processing bus from JSON:", bus["bus_no"])
+
                 bus_no = bus["bus_no"]
+
+                tracking_type = bus.get(
+                    "tracking_type",
+                    "trackapp"
+                )
+
+
+                # =====================
+                # WEBSOCKET BUSES
+                # =====================
+
+                if tracking_type == "websocket":
+
+                    if not bus.get("ws_started"):
+
+                        bus["ws_started"] = True
+
+                        threading.Thread(
+                            target=websocket_listener,
+                            args=(bus,),
+                            daemon=True
+                        ).start()
+
+                    continue
+
+
+                # =====================
+                # TRACKAPP BUSES
+                # =====================
+
+                device_id = bus.get("device_id")
+                auth = bus.get("auth")
+
+                if not device_id or not auth:
+                    continue
+
+
+                url = "https://reports.yourbus.in/ci/trackApp"
+
+                headers = {
+                    "Content-Type": "application/json",
+                    "Authentication": auth
+                }
+
+                payload = {
+                    "o": bus.get("operator", ""),
+                    "v": bus_no,
+                    "g": device_id
+                }
+
+
+                response = requests.post(
+                    url,
+                    headers=headers,
+                    json=payload
+                )
+
+
+                data = response.json()
+
+
+                if data["msg"] != "Ok":
+                    continue
+
+
+                gps = data["data"]
+
+
+                lat = float(gps["lt"])
+                lon = float(gps["lg"])
+                speed = float(gps["sp"])
+                timestamp = int(time.time())
+
+
                 if bus_no not in fleet_state:
+
                     fleet_state[bus_no] = {
                         "state": "ACTIVE",
                         "idle_start_time": None,
@@ -128,154 +208,159 @@ def tracking_loop():
                         "last_timestamp": None
                     }
 
-                headers = {
-                    "Content-Type": "application/json",
-                    "Authentication": bus["auth"]
-                }
 
-                payload = {
-                    "o": bus["operator"],
-                    "v": bus["bus_no"],
-                    "g": bus["device_id"]
-                }
-
-                try:
-                    r = requests.post(API_URL, json=payload, headers=headers, timeout=5)
-                    resp = r.json()
-                    print("API Response for", bus_no, ":", resp.get("msg"))
-                    if bus_no == "MP09AS9990":
-                       print("FULL RESPONSE:", resp)
-
-                    if resp.get("msg") not in ["Ok", "Stale"]:
-                      continue
-
-                    d = resp["data"]
-                    lat = float(d["lt"])
-                    lon = float(d["lg"])
-                    print("Bus:", bus_no, "| Lat:", lat, "| Lon:", lon)
-
-                    speed = float(d["sp"])
-                    timestamp = int(time.time())
-                    current_location = (lat, lon)
-
-                    # ==========================================
-                    # INITIALIZE FLEET STATE
-                    # ==========================================
-    
-
-                    state_data = fleet_state[bus_no]
-                    current_state = state_data["state"]
-
-                    active_journey = get_active_journey(bus_no)
-                    # ==========================================
-                    # IF NO ACTIVE JOURNEY
-                    # ==========================================
-                    if not active_journey:
-                        # TEMPORARY DEBUG VERSION (force create)
-                        print("Creating journey for", bus_no)
-                        active_journey = create_new_journey(bus_no, timestamp)
-                        state_data["state"] = "ACTIVE"
-                        state_data["idle_start_time"] = None
-                        state_data["idle_start_location"] = None
-                    # ==========================================
-                    # INSERT TRIP POINT
-                    # ==========================================
-                    conn = sqlite3.connect(DB_FILE)
-                    c = conn.cursor()
-                    c.execute("""
-                        INSERT INTO trip_points (journey_id, timestamp, lat, lon, speed)
-                        VALUES (?, ?, ?, ?, ?)
-                    """, (active_journey, timestamp, lat, lon, speed))
-                    conn.commit()
-                    conn.close()
-
-                    # ==========================================
-                    # FSM LOGIC
-                    # ==========================================
-
-                    # ------------------------------
-                    # ACTIVE STATE
-                    # ------------------------------
-                    if current_state == "ACTIVE":
-
-                        if speed <= 3:
-                            if not state_data["idle_start_time"]:
-                                state_data["idle_start_time"] = timestamp
-                                state_data["idle_start_location"] = current_location
-                            else:
-                                idle_duration = timestamp - state_data["idle_start_time"]
-
-                                if idle_duration >= IDLE_THRESHOLD:
-                                    state_data["state"] = "LONG_IDLE"
-
-                        else:
-                            state_data["idle_start_time"] = None
-                            state_data["idle_start_location"] = None
+                active_journey = get_active_journey(bus_no)
 
 
-                    # ------------------------------
-                    # LONG_IDLE STATE
-                    # ------------------------------
-                    elif current_state == "LONG_IDLE":
+                if not active_journey:
 
-                        idle_loc = state_data["idle_start_location"]
-
-                        distance_moved = haversine(
-                            idle_loc[0], idle_loc[1],
-                            lat, lon
-                        )
-
-                        idle_duration = timestamp - state_data["idle_start_time"]
-
-                        # If vehicle resumes movement significantly
-                        if speed > MOVEMENT_THRESHOLD and distance_moved > RESUME_DISTANCE_KM:
-                            state_data["state"] = "ACTIVE"
-                            state_data["idle_start_time"] = None
-                            state_data["idle_start_location"] = None
-
-                        # If still idle and exceeds full end threshold
-                        elif idle_duration >= END_CONFIRM_THRESHOLD:
-                            end_journey(active_journey, timestamp)
-                            state_data["state"] = "ENDED"
-                            state_data["idle_start_time"] = None
-                            state_data["idle_start_location"] = None
+                    active_journey = create_new_journey(
+                        bus_no,
+                        timestamp
+                    )
 
 
-                    # ------------------------------
-                    # ENDED STATE
-                    # ------------------------------
-                    elif current_state == "ENDED":
+                conn = sqlite3.connect(DB_FILE)
+                c = conn.cursor()
 
-                        # If vehicle starts moving again → new journey
-                        if speed > MOVEMENT_THRESHOLD:
-                            new_journey = create_new_journey(bus_no, timestamp)
-                            state_data["state"] = "ACTIVE"
-                            state_data["idle_start_time"] = None
-                            state_data["idle_start_location"] = None
-                            active_journey = new_journey
+                c.execute("""
+                    INSERT INTO trip_points
+                    (journey_id, timestamp, lat, lon, speed)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (
+                    active_journey,
+                    timestamp,
+                    lat,
+                    lon,
+                    speed
+                ))
 
+                conn.commit()
+                conn.close()
 
-                    # ==========================================
-                    # NETWORK FREEZE CHECK
-                    # ==========================================
-                    last_ts = state_data.get("last_timestamp")
+                print(f"[API] {bus_no} → {lat},{lon}")
 
-                    if last_ts and (timestamp - last_ts >= END_CONFIRM_THRESHOLD):
-
-                        if active_journey:
-                            end_journey(active_journey, timestamp)
-                            state_data["state"] = "ENDED"
-
-                    state_data["last_timestamp"] = timestamp
-
-                except Exception as e:
-                                print("ERROR:", e)
-
-
-            time.sleep(CHECK_INTERVAL)
 
         except Exception as e:
-            time.sleep(CHECK_INTERVAL)
+
+            print("Tracking Error:", e)
+
+
+        time.sleep(10)
+
+
+def websocket_listener(bus):
+
+    bus_no = bus["bus_no"]
+    service_no = bus.get("serviceNo")
+
+    if not service_no:
+        print(f"[WS] {bus_no} skipped, no serviceNo")
+        return
+
+
+    def on_open(ws):
+
+        payload = {
+            "serviceNo": service_no,
+            "doj": datetime.now().strftime("%Y-%m-%d"),
+            "trackingType": "full-tracking"
+        }
+
+        ws.send(json.dumps(payload))
+
+        print(f"[WS] Connected → {bus_no}")
+
+
+    def on_message(ws, message):
+
+        try:
+
+            data = json.loads(message)
+
+            if not data.get("success"):
+                return
+
+
+            position = data.get("vehicleInfo", {}).get("position", {})
+
+            if not position:
+                return
+
+
+            lat = float(position["latitude"])
+            lon = float(position["longitude"])
+
+            speed = 0
+            timestamp = int(time.time())
+
+
+            if bus_no not in fleet_state:
+
+                fleet_state[bus_no] = {
+                    "state": "ACTIVE",
+                    "idle_start_time": None,
+                    "idle_start_location": None,
+                    "last_timestamp": None
+                }
+
+
+            active_journey = get_active_journey(bus_no)
+
+
+            if not active_journey:
+
+                active_journey = create_new_journey(
+                    bus_no,
+                    timestamp
+                )
+
+
+            conn = sqlite3.connect(DB_FILE)
+            c = conn.cursor()
+
+            c.execute("""
+                INSERT INTO trip_points
+                (journey_id, timestamp, lat, lon, speed)
+                VALUES (?, ?, ?, ?, ?)
+            """, (
+                active_journey,
+                timestamp,
+                lat,
+                lon,
+                speed
+            ))
+
+            conn.commit()
+            conn.close()
+
+            print(f"[WS] {bus_no} → {lat},{lon}")
+
+
+        except Exception as e:
+
+            print("[WS ERROR]", e)
+
+
+    def on_close(ws, close_status_code, close_msg):
+
+        print(f"[WS CLOSED] {bus_no}")
+
+        # AUTO reconnect
+        time.sleep(5)
+
+        websocket_listener(bus)
+
+
+    ws = websocket.WebSocketApp(
+        "wss://reports.yourbus.in:1029",
+        on_open=on_open,
+        on_message=on_message,
+        on_close=on_close
+    )
+
+    ws.run_forever()
+
 
 # ================= ROUTES =================
 

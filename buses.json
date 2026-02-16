@@ -222,5 +222,13 @@
         "bus_no": "MP09DA9990",
         "device_id": "5754127589892",
         "auth": "f84b89d6e76266a897096b28b3ced29528dac43fec79ef0a976bd42c5aadddecafba22c0d6d3cae49230c8832970790c"
+    },
+    {
+        "name": "Bus WS 1",
+        "operator": "RTN",
+        "bus_no": "MP09DH9990",
+        "tracking_type": "websocket",
+        "serviceNo": "rtnindore-varanasi-0515pm"
     }
+
 ]
