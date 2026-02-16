@@ -224,17 +224,21 @@
         "auth": "f84b89d6e76266a897096b28b3ced29528dac43fec79ef0a976bd42c5aadddecafba22c0d6d3cae49230c8832970790c"
     },
     {
-        "name": "Bus WS 1",
+        "name": "Indore → Pune 0615PM",
         "operator": "RTN",
-        "bus_no": "MP09DH9990",
+        "tracking_type": "websocket",
+        "serviceNo": "rtnindore-pune-0615pm"
+    },
+    {
+        "name": "Indore → Varanasi 0515PM",
+        "operator": "RTN",
         "tracking_type": "websocket",
         "serviceNo": "rtnindore-varanasi-0515pm"
     },
     {
-        "name": "Indore Pune 0615PM",
+        "name": "Pune → Indore 0845PM (2)",
         "operator": "RTN",
-        "bus_no": "MP09AP9990",
         "tracking_type": "websocket",
-        "serviceNo": "rtnindore-pune-0615pm"
+        "serviceNo": "rtnpune-indore-0845pm-2"
     }
 ]
