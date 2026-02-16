@@ -224,21 +224,89 @@
         "auth": "f84b89d6e76266a897096b28b3ced29528dac43fec79ef0a976bd42c5aadddecafba22c0d6d3cae49230c8832970790c"
     },
     {
-        "name": "Indore → Pune 0615PM",
+        "name": "Bus 33",
         "operator": "RTN",
         "tracking_type": "websocket",
         "serviceNo": "rtnindore-pune-0615pm"
     },
     {
-        "name": "Indore → Varanasi 0515PM",
+        "name": "Bus 34",
         "operator": "RTN",
         "tracking_type": "websocket",
         "serviceNo": "rtnindore-varanasi-0515pm"
     },
     {
-        "name": "Pune → Indore 0845PM (2)",
+        "name": "Bus 35",
         "operator": "RTN",
         "tracking_type": "websocket",
         "serviceNo": "rtnpune-indore-0845pm-2"
+    },
+    {        
+        "name": "Bus 36",
+        "operator": "RTN",
+        "bus_no": "MP09DS9990",
+        "device_id": "5754120360102",
+        "auth": "f84b89d6e76266a897096b28b3ced295dccf7b51c930eb102b5ba7cc6f0c3dffafba22c0d6d3cae49230c8832970790c"
+    },
+    {
+        "name": "Bus 37",
+        "operator": "RTN",
+        "tracking_type": "websocket",
+        "serviceNo": "rtnindore-pune-0715pm"
+    },
+    {        
+        "name": "Bus 38",
+        "operator": "RTN",
+        "bus_no": "MP09AX9990",
+        "device_id": "5754127590909",
+        "auth": "f84b89d6e76266a897096b28b3ced295778b8d2c30cbffe5fa73ef611ae2c08bafba22c0d6d3cae49230c8832970790c"
+    },
+    {        
+        "name": "Bus 39",
+        "operator": "RTN",
+        "bus_no": "MP09ZU0099",
+        "device_id": "5754120172902",
+        "auth": "f84b89d6e76266a897096b28b3ced2953663eebedb7423bcbd1d8fdb9b9c4559afba22c0d6d3cae49230c8832970790c"
+    },
+    {        
+        "name": "Bus 40",
+        "operator": "RTN",
+        "bus_no": "MP09PA6660",
+        "device_id": "5754123540358",
+        "auth": "f84b89d6e76266a897096b28b3ced2958de3f555b693bba367aee2ca03a100f8afba22c0d6d3cae49230c8832970790c"
+    },
+    {        
+        "name": "Bus 41",
+        "operator": "RTN",
+        "bus_no": "MP09DC0666",
+        "device_id": "5754120172863",
+        "auth": "f84b89d6e76266a897096b28b3ced295f02a9c8e681d715a7fd2127b9fb5fe83afba22c0d6d3cae49230c8832970790c"
+    },
+    {        
+        "name": "Bus 41",
+        "operator": "RTN",
+        "bus_no": "MP09DH0009",
+        "device_id": "5754121185027",
+        "auth": "f84b89d6e76266a897096b28b3ced295bb7c25b60a574f5462a04c63ee75a64cafba22c0d6d3cae49230c8832970790c"
+    },
+    {        
+        "name": "Bus 42",
+        "operator": "RTN",
+        "bus_no": "MP09AT9000",
+        "device_id": "5754120360084",
+        "auth": "f84b89d6e76266a897096b28b3ced295e4e5655a1144f4bda08c93f2714b91cfafba22c0d6d3cae49230c8832970790c"
+    },
+    {        
+        "name": "Bus 43",
+        "operator": "RTN",
+        "bus_no": "MP09ZT0009",
+        "device_id": "5754120497844",
+        "auth": "f84b89d6e76266a897096b28b3ced295dd8f169edab693259f32bfca7fa37425afba22c0d6d3cae49230c8832970790c"
+    },
+    {
+        "name": "Bus 44",
+        "operator": "RTN",
+        "tracking_type": "websocket",
+        "serviceNo": "rtnujjain-nagpur-0700pm"
     }
 ]
