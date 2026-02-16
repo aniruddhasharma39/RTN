@@ -14,7 +14,7 @@ app = Flask(__name__)
 
 API_URL = "https://reports.yourbus.in/ci/trackApp"
 BUS_FILE = "buses.json"
-DB_FILE = "data/fleet.db"
+DB_FILE = "/data/fleet.db"
 CHECK_INTERVAL = 10
 
 STOP_THRESHOLD = 120          # 2 minutes
