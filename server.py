@@ -385,6 +385,13 @@ def on_message(ws, message):
         state = fleet_state[bus_no]
 
         active_journey = get_active_journey(bus_no)
+        # Force new journey if database has none
+        if active_journey is None:
+        
+            active_journey = create_new_journey(bus_no, timestamp)
+        
+            print(f"[NEW JOURNEY][WS] {bus_no}")
+
 
         if not active_journey:
 
