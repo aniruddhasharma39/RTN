@@ -99,6 +99,7 @@ let initialZoomDone = false;
 let layers = [];
 let selectedStops = [];
 let currentRouteData = [];
+let busLabelMap = {};
 
 const osm = L.tileLayer(
 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -324,7 +325,7 @@ async function loadRoute(){
     let busMarker=L.marker(coords[coords.length-1],
         {icon:createBusIcon(color)}
     ).bindTooltip(
-        `<b>${bus}</b><br>
+        `<b>${busLabelMap[bus] || bus}</b><br>
         Distance: ${totalDistance} km<br>
         Time: ${totalTime}`
     ).addTo(map);
