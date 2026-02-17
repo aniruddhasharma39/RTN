@@ -530,21 +530,6 @@ def get_buses():
 
     return jsonify(result)
     
-@app.route("/__admin/fix-end-journeys")
-def fix_end_journeys():
-
-    conn = sqlite3.connect(DB_FILE)
-
-    conn.execute("""
-        UPDATE journeys
-        SET status='ended'
-        WHERE status='active'
-    """)
-
-    conn.commit()
-    conn.close()
-
-    return "Fixed"
 
 
 @app.route("/dates/<bus_no>")
