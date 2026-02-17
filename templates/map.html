@@ -137,17 +137,31 @@ function createBusIcon(color){
 }
 
 async function loadBuses(){
+
     let buses = await fetch('/buses').then(r=>r.json());
+
     let busSelect = document.getElementById('busSelect');
+
     busSelect.innerHTML='';
 
+    busLabelMap = {};   // reset
+
     buses.forEach(b=>{
+
+        busLabelMap[b.id] = b.label;   // ⭐ THIS WAS MISSING
+
         let opt=document.createElement('option');
+
         opt.value=b.id;
+
         opt.textContent=b.label;
+
         busSelect.appendChild(opt);
+
     });
+
 }
+
 
     async function loadDates(){
 
@@ -248,30 +262,51 @@ function makeSelectable(marker, point){
 
     marker.on('click', function(e){
 
-        // Prevent popup from blocking selection logic
         e.originalEvent.stopPropagation();
 
-        // Bring marker above polyline
-        marker.bringToFront();
+        let index = selectedStops.indexOf(point);
 
-        // Change boundary to black
-        if(marker.setStyle){
-            marker.setStyle({
-                color:"black",
-                weight:3
-            });
-        }
+        if(index !== -1){
 
-        // Prevent duplicate selection
-        if(!selectedStops.includes(point)){
+            // deselect
+            selectedStops.splice(index,1);
+
+            if(marker.setStyle){
+
+                marker.setStyle({
+                    color: marker.options.originalColor || marker.options.color,
+                    weight:1
+                });
+
+            }
+
+        } else {
+
+            // select
+
             selectedStops.push(point);
+
+            if(marker.setStyle){
+
+                marker.setStyle({
+                    color:"black",
+                    weight:3
+                });
+
+            }
+
         }
 
         if(selectedStops.length === 2){
+
             measure();
+
         }
+
     });
+
 }
+
 
 async function loadRoute(){
 
@@ -493,31 +528,43 @@ function randomColor(){
 }
 
 async function loadAllBuses(){
+
     clearMap();
 
     let date=document.getElementById('dateSelect').value;
+
     if(!date) return;
 
     let buses=await fetch('/buses').then(r=>r.json());
 
-    for(let bus of buses){
+    for(let b of buses){
+
+        let bus = b.id;  // ⭐ FIX
+
         let data=await fetch(`/route/${bus}/${date}`).then(r=>r.json());
+
         if(!data || data.length===0) continue;
 
         let coords=data.map(r=>[r[0],r[1]]);
+
         let color=randomColor();
 
         let line=L.polyline(coords,{color:color}).addTo(map);
+
         layers.push(line);
 
         let marker=L.marker(coords[coords.length-1],
             {icon:createBusIcon(color)}
-        ).bindTooltip(bus)
+        )
+        .bindTooltip(busLabelMap[bus] || bus)  // ⭐ FIX
         .addTo(map);
 
         layers.push(marker);
+
     }
+
 }
+
 loadBuses().then(loadDates);
 
 
