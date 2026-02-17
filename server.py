@@ -345,121 +345,126 @@ def websocket_listener(bus):
         print(f"[WS] Connected → {bus_no}")
 
 
-    def on_message(ws, message):
+def on_message(ws, message):
 
-        try:
+    try:
 
-            data = json.loads(message)
+        data = json.loads(message)
 
-            if not data.get("success"):
-                return
+        if not data.get("success"):
+            return
 
+        position = data.get("vehicleInfo", {}).get("position", {})
+        vehicle_number = data.get("vehicleInfo", {}).get("registrationNumber")
 
-            position = data.get("vehicleInfo", {}).get("position", {})
-            vehicle_number = data.get("vehicleInfo", {}).get("registrationNumber")
-            # Optional: update runtime bus_no display
-            if vehicle_number:
-                print(f"[WS VEHICLE] {service_no} using vehicle {vehicle_number}")
+        if vehicle_number:
+            print(f"[WS VEHICLE] {service_no} using vehicle {vehicle_number}")
 
-            if not position:
-                return
+        if not position:
+            return
 
+        lat = float(position["latitude"])
+        lon = float(position["longitude"])
 
-            lat = float(position["latitude"])
-            lon = float(position["longitude"])
+        speed = 0
+        timestamp = int(time.time())
 
-            speed = 0
-            timestamp = int(time.time())
+        # ================= INITIALIZE STATE =================
 
+        if bus_no not in fleet_state:
 
-            if bus_no not in fleet_state:
+            fleet_state[bus_no] = {
+                "idle_start_time": None,
+                "last_location": None
+            }
 
-                fleet_state[bus_no] = {
-                    "state": "ACTIVE",
-                    "idle_start_time": None,
-                    "idle_start_location": None,
-                    "last_timestamp": None
-                }
-                active_journey = get_active_journey(bus_no)
+        state = fleet_state[bus_no]
 
-                state = fleet_state[bus_no]
+        # ================= GET ACTIVE JOURNEY =================
 
-                # ================= FIRST JOURNEY =================
+        active_journey = get_active_journey(bus_no)
 
-                if not active_journey:
+        if not active_journey:
 
-                    active_journey = create_new_journey(bus_no, timestamp)
+            print(f"[NEW JOURNEY][WS] {bus_no}")
 
-                    state["idle_start_time"] = None
-                    state["idle_start_location"] = None
+            active_journey = create_new_journey(bus_no, timestamp)
 
+            state["idle_start_time"] = None
+            state["last_location"] = (lat, lon)
 
-                # ================= CHECK IDLE =================
+        else:
 
-                else:
+            # ================= IDLE CHECK =================
 
-                    if speed <= 3:
+            last_location = state.get("last_location")
 
-                        if state["idle_start_time"] is None:
+            if last_location:
 
-                            state["idle_start_time"] = timestamp
-                            state["idle_start_location"] = (lat, lon)
+                distance = haversine(
+                    last_location[0],
+                    last_location[1],
+                    lat,
+                    lon
+                )
 
-                        else:
+                # If vehicle stayed within 50 meters
+                if distance <= 0.05:
 
-                            idle_duration = timestamp - state["idle_start_time"]
+                    if state["idle_start_time"] is None:
 
-                            distance = haversine(
-                                state["idle_start_location"][0],
-                                state["idle_start_location"][1],
-                                lat,
-                                lon
-                            )
-
-                            # 2 hour idle AND no movement
-                            if idle_duration >= 7200 and distance <= 0.3:
-
-                                print(f"[JOURNEY END] {bus_no}")
-
-                                end_journey(active_journey, timestamp)
-
-                                active_journey = create_new_journey(bus_no, timestamp)
-
-                                state["idle_start_time"] = None
-                                state["idle_start_location"] = None
+                        state["idle_start_time"] = timestamp
 
                     else:
 
-                        # vehicle moving → reset idle
-                        state["idle_start_time"] = None
-                        state["idle_start_location"] = None
+                        idle_duration = timestamp - state["idle_start_time"]
 
+                        # 2 hours idle → end journey
+                        if idle_duration >= 7200:
 
+                            print(f"[JOURNEY END][WS] {bus_no}")
 
-            conn = sqlite3.connect(DB_FILE)
-            c = conn.cursor()
+                            end_journey(active_journey, timestamp)
 
-            c.execute("""
-                INSERT INTO trip_points
-                (journey_id, timestamp, lat, lon, speed)
-                VALUES (?, ?, ?, ?, ?)
-            """, (
-                active_journey,
-                timestamp,
-                lat,
-                lon,
-                speed
-            ))
+                            active_journey = create_new_journey(bus_no, timestamp)
 
-            conn.commit()
-            conn.close()
+                            print(f"[NEW JOURNEY][WS] {bus_no}")
 
-            print(f"[WS] {bus_no} → {lat},{lon}")
+                            state["idle_start_time"] = None
 
+                else:
 
-        except Exception as e:
+                    # Vehicle moved → reset idle timer
+                    state["idle_start_time"] = None
 
-            print("[WS ERROR]", e)
+            # Update last location always
+            state["last_location"] = (lat, lon)
+
+        # ================= INSERT POINT =================
+
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+
+        c.execute("""
+            INSERT INTO trip_points
+            (journey_id, timestamp, lat, lon, speed)
+            VALUES (?, ?, ?, ?, ?)
+        """, (
+            active_journey,
+            timestamp,
+            lat,
+            lon,
+            speed
+        ))
+
+        conn.commit()
+        conn.close()
+
+        print(f"[WS] {bus_no} → {lat},{lon}")
+
+    except Exception as e:
+
+        print("[WS ERROR]", e)
 
 
     def on_close(ws, close_status_code, close_msg):
