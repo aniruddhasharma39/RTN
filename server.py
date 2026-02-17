@@ -369,12 +369,13 @@ def on_message(ws, message):
         speed = 0
         timestamp = int(time.time())
 
-        # ================= INITIALIZE STATE =================
+        # ================= STATE INIT =================
 
         if bus_no not in fleet_state:
 
             fleet_state[bus_no] = {
                 "idle_start_time": None,
+                "idle_start_location": None,
                 "last_location": None
             }
 
@@ -386,59 +387,83 @@ def on_message(ws, message):
 
         if not active_journey:
 
-            print(f"[NEW JOURNEY][WS] {bus_no}")
-
             active_journey = create_new_journey(bus_no, timestamp)
 
+            print(f"[NEW JOURNEY][WS] {bus_no}")
+
             state["idle_start_time"] = None
-            state["last_location"] = (lat, lon)
+            state["idle_start_location"] = (lat, lon)
 
         else:
 
-            # ================= IDLE CHECK =================
+            # ================= LARGE JUMP DETECTION =================
+            # This fixes Pune → Indore restart issue
 
             last_location = state.get("last_location")
 
-            if last_location:
+            if last_location is not None:
 
-                distance = haversine(
+                jump_distance = haversine(
                     last_location[0],
                     last_location[1],
                     lat,
                     lon
                 )
 
-                # If vehicle stayed within 50 meters
-                if distance <= 0.05:
+                if jump_distance >= 50:
 
-                    if state["idle_start_time"] is None:
+                    print(f"[JOURNEY RESET][WS] {bus_no} jumped {jump_distance:.1f} km")
 
-                        state["idle_start_time"] = timestamp
+                    end_journey(active_journey, timestamp)
 
-                    else:
+                    active_journey = create_new_journey(bus_no, timestamp)
 
-                        idle_duration = timestamp - state["idle_start_time"]
+                    print(f"[NEW JOURNEY][WS] {bus_no}")
 
-                        # 2 hours idle → end journey
-                        if idle_duration >= 7200:
+                    state["idle_start_time"] = None
+                    state["idle_start_location"] = (lat, lon)
 
-                            print(f"[JOURNEY END][WS] {bus_no}")
+            # ================= IDLE DETECTION =================
 
-                            end_journey(active_journey, timestamp)
+            if speed <= 3:
 
-                            active_journey = create_new_journey(bus_no, timestamp)
+                if state["idle_start_time"] is None:
 
-                            print(f"[NEW JOURNEY][WS] {bus_no}")
-
-                            state["idle_start_time"] = None
+                    state["idle_start_time"] = timestamp
+                    state["idle_start_location"] = (lat, lon)
 
                 else:
 
-                    # Vehicle moved → reset idle timer
-                    state["idle_start_time"] = None
+                    idle_duration = timestamp - state["idle_start_time"]
 
-            # Update last location always
-            state["last_location"] = (lat, lon)
+                    distance = haversine(
+                        state["idle_start_location"][0],
+                        state["idle_start_location"][1],
+                        lat,
+                        lon
+                    )
+
+                    if idle_duration >= 7200 and distance <= 0.3:
+
+                        print(f"[JOURNEY END][WS] {bus_no}")
+
+                        end_journey(active_journey, timestamp)
+
+                        active_journey = create_new_journey(bus_no, timestamp)
+
+                        print(f"[NEW JOURNEY][WS] {bus_no}")
+
+                        state["idle_start_time"] = None
+                        state["idle_start_location"] = (lat, lon)
+
+            else:
+
+                state["idle_start_time"] = None
+                state["idle_start_location"] = None
+
+        # ================= UPDATE LAST LOCATION =================
+
+        state["last_location"] = (lat, lon)
 
         # ================= INSERT POINT =================
 
@@ -465,6 +490,7 @@ def on_message(ws, message):
     except Exception as e:
 
         print("[WS ERROR]", e)
+
 
 
     def on_close(ws, close_status_code, close_msg):
