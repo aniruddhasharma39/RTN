@@ -99,7 +99,58 @@ let initialZoomDone = false;
 let layers = [];
 let selectedStops = [];
 let currentRouteData = [];
+let serviceVehicleMap = {};
+// ================= FRONTEND WEBSOCKET VEHICLE DETECTOR =================
 
+let ws = new WebSocket("wss://reports.yourbus.in:1029");
+
+ws.onopen = function(){
+
+    // subscribe to all services from dropdown
+
+    fetch('/buses')
+    .then(r=>r.json())
+    .then(buses=>{
+
+        buses.forEach(serviceNo=>{
+
+            ws.send(JSON.stringify({
+                serviceNo: serviceNo,
+                doj: new Date().toISOString().slice(0,10),
+                trackingType: "full-tracking"
+            }));
+
+        });
+
+    });
+
+};
+
+ws.onmessage = function(event){
+
+    try{
+
+        let data = JSON.parse(event.data);
+
+        if(!data.success) return;
+
+        let serviceNo = data.vehicleInfo.serviceNo;
+
+        let vehicleNo = data.vehicleInfo.registrationNumber;
+
+        if(vehicleNo){
+
+            serviceVehicleMap[serviceNo] = vehicleNo;
+
+            updateDropdownLabels();
+
+        }
+
+    }catch(e){}
+
+};
+
+    
 const osm = L.tileLayer(
 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
 { attribution:'© OpenStreetMap' }
@@ -135,6 +186,27 @@ function createBusIcon(color){
     });
 }
 
+function updateDropdownLabels(){
+
+    let select = document.getElementById('busSelect');
+
+    for(let opt of select.options){
+
+        let service = opt.value;
+
+        if(serviceVehicleMap[service]){
+
+            opt.textContent =
+                serviceVehicleMap[service] +
+                " (" + service + ")";
+
+        }
+
+    }
+
+}
+
+
 async function loadBuses(){
     let buses = await fetch('/buses').then(r=>r.json());
     let busSelect = document.getElementById('busSelect');
@@ -143,7 +215,11 @@ async function loadBuses(){
     buses.forEach(b=>{
         let opt=document.createElement('option');
         opt.value=b;
-        opt.textContent=b;
+        opt.textContent =
+            serviceVehicleMap[b]
+            ? serviceVehicleMap[b] + " (" + b + ")"
+            : b;
+
         busSelect.appendChild(opt);
     });
 }
@@ -324,7 +400,9 @@ async function loadRoute(){
     let busMarker=L.marker(coords[coords.length-1],
         {icon:createBusIcon(color)}
     ).bindTooltip(
-        `<b>${bus}</b><br>
+        `<b>${
+            serviceVehicleMap[bus] || bus
+        }</b><br>
         Distance: ${totalDistance} km<br>
         Time: ${totalTime}`
     ).addTo(map);
