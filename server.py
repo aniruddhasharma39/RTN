@@ -49,6 +49,7 @@ def load_buses():
 
 
 fleet_state = {}
+service_vehicle_map = {}
 
 
 # ================= DATABASE =================
@@ -356,7 +357,9 @@ def websocket_listener(bus):
     
             position = data.get("vehicleInfo", {}).get("position", {})
             vehicle_number = data.get("vehicleInfo", {}).get("registrationNumber")
-    
+            if vehicle_number:
+                service_vehicle_map[service_no] = vehicle_number
+
             if vehicle_number:
                 print(f"[WS VEHICLE] {service_no} using vehicle {vehicle_number}")
     
@@ -514,21 +517,37 @@ def home():
 
 @app.route("/buses")
 def get_buses():
+
     with open(BUS_FILE) as f:
         buses = json.load(f)
+
     result = []
 
     for b in buses:
 
         if b.get("tracking_type") == "websocket":
 
-            result.append(b.get("serviceNo"))
+            service = b.get("serviceNo")
+
+            vehicle = service_vehicle_map.get(service)
+
+            result.append({
+                "id": service,   # KEEP original serviceNo
+                "label": vehicle if vehicle else service
+            })
 
         else:
 
-            result.append(b.get("bus_no"))
+            bus_no = b.get("bus_no")
+
+            result.append({
+                "id": bus_no,
+                "label": bus_no
+            })
 
     return jsonify(result)
+
+
     
 
 
