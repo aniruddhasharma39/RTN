@@ -345,135 +345,135 @@ def websocket_listener(bus):
         print(f"[WS] Connected → {bus_no}")
 
 
-def on_message(ws, message):
-
-    try:
-
-        data = json.loads(message)
-
-        if not data.get("success"):
-            return
-
-        position = data.get("vehicleInfo", {}).get("position", {})
-        vehicle_number = data.get("vehicleInfo", {}).get("registrationNumber")
-
-        if vehicle_number:
-            print(f"[WS VEHICLE] {service_no} using vehicle {vehicle_number}")
-
-        if not position:
-            return
-
-        lat = float(position["latitude"])
-        lon = float(position["longitude"])
-
-        speed = 0
-        timestamp = int(time.time())
-
-        # IMPORTANT: keep serviceNo as bus_no
-        bus_no = service_no
-
-        # ================= INIT STATE =================
-
-        if bus_no not in fleet_state:
-
-            fleet_state[bus_no] = {
-                "idle_start_time": None,
-                "idle_location": None,
-                "last_location": None
-            }
-
-        state = fleet_state[bus_no]
-
-        active_journey = get_active_journey(bus_no)
-        # Force new journey if database has none
-        if active_journey is None:
-        
-            active_journey = create_new_journey(bus_no, timestamp)
-        
-            print(f"[NEW JOURNEY][WS] {bus_no}")
-
-
-        if not active_journey:
-
-            active_journey = create_new_journey(bus_no, timestamp)
-
-            print(f"[NEW JOURNEY][WS] {bus_no}")
-
-        else:
-
-            last_location = state.get("last_location")
-
-            if last_location:
-
-                distance = haversine(
-                    last_location[0],
-                    last_location[1],
-                    lat,
-                    lon
-                )
-
-                # vehicle stationary
-                if distance <= 0.05:
-
-                    if state["idle_start_time"] is None:
-
-                        state["idle_start_time"] = timestamp
-                        state["idle_location"] = (lat, lon)
-
-                else:
-
-                    # vehicle moved
-
-                    if state["idle_start_time"]:
-
-                        idle_duration = timestamp - state["idle_start_time"]
-
-                        # idle ≥ 2 hr AND moved ≥ 5 km → new journey
-                        restart_distance = haversine(
-                            state["idle_location"][0],
-                            state["idle_location"][1],
-                            lat,
-                            lon
-                        )
-
-                        if idle_duration >= 7200 and restart_distance >= 5:
-
-                            print(f"[SERVICE RESTART][WS] {bus_no}")
-
-                            end_journey(active_journey, timestamp)
-
-                            active_journey = create_new_journey(bus_no, timestamp)
-
-                            print(f"[NEW JOURNEY][WS] {bus_no}")
-
-                    state["idle_start_time"] = None
-                    state["idle_location"] = None
-
-        state["last_location"] = (lat, lon)
-
-        conn = sqlite3.connect(DB_FILE)
-        c = conn.cursor()
-
-        c.execute("""
-            INSERT INTO trip_points
-            (journey_id, timestamp, lat, lon, speed)
-            VALUES (?, ?, ?, ?, ?)
-        """, (
-            active_journey,
-            timestamp,
-            lat,
-            lon,
-            speed
-        ))
-
-        conn.commit()
-        conn.close()
-
-        print(f"[WS] {bus_no} → {lat},{lon}")
-
-    except Exception as e:
-
-        print("[WS ERROR]", e)
+    def on_message(ws, message):
+    
+        try:
+    
+            data = json.loads(message)
+    
+            if not data.get("success"):
+                return
+    
+            position = data.get("vehicleInfo", {}).get("position", {})
+            vehicle_number = data.get("vehicleInfo", {}).get("registrationNumber")
+    
+            if vehicle_number:
+                print(f"[WS VEHICLE] {service_no} using vehicle {vehicle_number}")
+    
+            if not position:
+                return
+    
+            lat = float(position["latitude"])
+            lon = float(position["longitude"])
+    
+            speed = 0
+            timestamp = int(time.time())
+    
+            # IMPORTANT: keep serviceNo as bus_no
+            bus_no = service_no
+    
+            # ================= INIT STATE =================
+    
+            if bus_no not in fleet_state:
+    
+                fleet_state[bus_no] = {
+                    "idle_start_time": None,
+                    "idle_location": None,
+                    "last_location": None
+                }
+    
+            state = fleet_state[bus_no]
+    
+            active_journey = get_active_journey(bus_no)
+            # Force new journey if database has none
+            if active_journey is None:
+            
+                active_journey = create_new_journey(bus_no, timestamp)
+            
+                print(f"[NEW JOURNEY][WS] {bus_no}")
+    
+    
+            if not active_journey:
+    
+                active_journey = create_new_journey(bus_no, timestamp)
+    
+                print(f"[NEW JOURNEY][WS] {bus_no}")
+    
+            else:
+    
+                last_location = state.get("last_location")
+    
+                if last_location:
+    
+                    distance = haversine(
+                        last_location[0],
+                        last_location[1],
+                        lat,
+                        lon
+                    )
+    
+                    # vehicle stationary
+                    if distance <= 0.05:
+    
+                        if state["idle_start_time"] is None:
+    
+                            state["idle_start_time"] = timestamp
+                            state["idle_location"] = (lat, lon)
+    
+                    else:
+    
+                        # vehicle moved
+    
+                        if state["idle_start_time"]:
+    
+                            idle_duration = timestamp - state["idle_start_time"]
+    
+                            # idle ≥ 2 hr AND moved ≥ 5 km → new journey
+                            restart_distance = haversine(
+                                state["idle_location"][0],
+                                state["idle_location"][1],
+                                lat,
+                                lon
+                            )
+    
+                            if idle_duration >= 7200 and restart_distance >= 5:
+    
+                                print(f"[SERVICE RESTART][WS] {bus_no}")
+    
+                                end_journey(active_journey, timestamp)
+    
+                                active_journey = create_new_journey(bus_no, timestamp)
+    
+                                print(f"[NEW JOURNEY][WS] {bus_no}")
+    
+                        state["idle_start_time"] = None
+                        state["idle_location"] = None
+    
+            state["last_location"] = (lat, lon)
+    
+            conn = sqlite3.connect(DB_FILE)
+            c = conn.cursor()
+    
+            c.execute("""
+                INSERT INTO trip_points
+                (journey_id, timestamp, lat, lon, speed)
+                VALUES (?, ?, ?, ?, ?)
+            """, (
+                active_journey,
+                timestamp,
+                lat,
+                lon,
+                speed
+            ))
+    
+            conn.commit()
+            conn.close()
+    
+            print(f"[WS] {bus_no} → {lat},{lon}")
+    
+        except Exception as e:
+    
+            print("[WS ERROR]", e)
 
 
 
