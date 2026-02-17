@@ -142,8 +142,8 @@ async function loadBuses(){
 
     buses.forEach(b=>{
         let opt=document.createElement('option');
-        opt.value=b;
-        opt.textContent=b;
+        opt.value=b.id;
+        opt.textContent=b.label;
         busSelect.appendChild(opt);
     });
 }
