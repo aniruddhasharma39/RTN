@@ -99,6 +99,8 @@ let initialZoomDone = false;
 
 let layers = [];
 let selectedStops = [];
+let selectedPoints = [];
+
 let currentRouteData = [];
 let busLabelMap = {};
 
@@ -259,55 +261,121 @@ async function loadAllDates(){
 }
 
 
-function makeSelectable(marker, point){
+function makeSelectable(marker, tripPoint){
 
-    marker.on('click', function(e){
+    marker.tripPoint = tripPoint;
+
+    marker.on("click", function(e){
 
         e.originalEvent.stopPropagation();
 
-        let index = selectedStops.indexOf(point);
+        // already selected → deselect
+        if(marker.selected){
 
-        if(index !== -1){
+            marker.selected = false;
 
-            // deselect
-            selectedStops.splice(index,1);
+            marker.setStyle?.({
+                color: marker.defaultColor,
+                weight:1
+            });
 
-            if(marker.setStyle){
+            selectedPoints =
+                selectedPoints.filter(p => p.marker !== marker);
 
-                marker.setStyle({
-                    color: marker.options.originalColor || marker.options.color,
-                    weight:1
-                });
+            return;
+        }
 
-            }
+        // if already 2 selected → remove first
+        if(selectedPoints.length === 2){
 
-        } else {
+            let old = selectedPoints.shift();
 
-            // select
+            old.marker.selected = false;
 
-            selectedStops.push(point);
-
-            if(marker.setStyle){
-
-                marker.setStyle({
-                    color:"black",
-                    weight:3
-                });
-
-            }
+            old.marker.setStyle?.({
+                color: old.marker.defaultColor,
+                weight:1
+            });
 
         }
 
-        if(selectedStops.length === 2){
+        // select new
+        marker.selected = true;
 
-            measure();
+        marker.setStyle?.({
+            color:"black",
+            weight:3
+        });
+
+        selectedPoints.push({
+
+            marker: marker,
+
+            point: tripPoint
+
+        });
+
+        // when exactly 2 selected → measure
+        if(selectedPoints.length === 2){
+
+            measureDistanceTime();
 
         }
 
     });
 
 }
-// ⭐ OSRM MATCH FUNCTION WITH CHUNKIN
+
+async function measureDistanceTime(){
+
+    let bus =
+        document.getElementById('busSelect').value;
+
+    let date =
+        document.getElementById('dateSelect').value;
+
+    let start =
+        selectedPoints[0].point.timestamp;
+
+    let end =
+        selectedPoints[1].point.timestamp;
+
+    if(start > end){
+
+        [start,end] = [end,start];
+
+    }
+
+    let result = await fetch("/measure",{
+
+        method:"POST",
+
+        headers:{
+            "Content-Type":"application/json"
+        },
+
+        body:JSON.stringify({
+
+            bus_no:bus,
+
+            trip_date:date,
+
+            start_ts:start,
+
+            end_ts:end
+
+        })
+
+    }).then(r=>r.json());
+
+    alert(
+`Distance: ${result.distance_km} km
+Time: ${result.hours}h ${result.minutes}m`
+    );
+
+}
+
+
 async function getMatchedRoute(raw){
 
     // ⭐ STEP 1: SAMPLE POINTS every 20th point
@@ -423,32 +491,146 @@ async function loadRoute(){
 
     // START MARKER
     let start=L.circleMarker(matchedCoords[0],{
+
         radius:7,
         color:"green",
         fillColor:"green",
         fillOpacity:1
+
     })
     .bindPopup(
-        `<b>Journey Start</b><br>
-        Time: ${formatTimestamp(raw[0][2])}`
+    `<b>Journey Start</b><br>
+    Time: ${formatTimestamp(raw[0][2])}`
     )
     .addTo(map);
+
+    start.defaultColor="green";
+
+    makeSelectable(start,{
+        lat:raw[0][0],
+        lon:raw[0][1],
+        timestamp:raw[0][2]
+    });
 
     layers.push(start);
 
+
     // BUS MARKER
     let busMarker=L.marker(
-        matchedCoords[matchedCoords.length-1],
-        {icon:createBusIcon(color)}
-    )
-    .bindTooltip(
-        `<b>${busLabelMap[bus] || bus}</b><br>
-        Distance: ${totalDistance} km<br>
-        Time: ${totalTime}`
-    )
-    .addTo(map);
 
-    layers.push(busMarker);
+    matchedCoords[matchedCoords.length-1],
+
+    {icon:createBusIcon(color)}
+
+)
+.bindTooltip(
+`<b>${busLabelMap[bus] || bus}</b><br>
+Distance: ${totalDistance} km<br>
+Time: ${totalTime}`
+)
+.addTo(map);
+
+busMarker.defaultColor=color;
+
+let last=raw[raw.length-1];
+
+makeSelectable(busMarker,{
+
+    lat:last[0],
+    lon:last[1],
+    timestamp:last[2]
+
+});
+
+layers.push(busMarker);
+
+// ================= STOP DETECTION =================
+
+let stopStart=null;
+
+for(let i=1;i<raw.length;i++){
+
+    let gap=raw[i][2]-raw[i-1][2];
+
+    if(gap>=120){
+
+        let stop=L.circleMarker(
+
+            [raw[i][0],raw[i][1]],
+
+            {
+
+                radius:7,
+
+                color:"orange",
+
+                fillColor:"orange",
+
+                fillOpacity:1
+
+            }
+
+        )
+        .bindPopup(
+        `<b>Stop</b><br>
+        Time: ${formatTimestamp(raw[i][2])}<br>
+        Halt: ${Math.floor(gap/60)} min`
+        )
+        .addTo(map);
+
+        stop.defaultColor="orange";
+
+        makeSelectable(stop,{
+
+            lat:raw[i][0],
+            lon:raw[i][1],
+            timestamp:raw[i][2]
+
+        });
+
+        layers.push(stop);
+
+    }
+
+}
+// ================= END POINT =================
+
+let lastIndex=raw.length-1;
+
+let end=L.circleMarker(
+
+    [raw[lastIndex][0],raw[lastIndex][1]],
+
+    {
+
+        radius:8,
+
+        color:"red",
+
+        fillColor:"red",
+
+        fillOpacity:1
+
+    }
+
+)
+.bindPopup(
+`<b>Journey End</b><br>
+Time: ${formatTimestamp(raw[lastIndex][2])}`
+)
+.addTo(map);
+
+end.defaultColor="red";
+
+makeSelectable(end,{
+
+    lat:raw[lastIndex][0],
+    lon:raw[lastIndex][1],
+    timestamp:raw[lastIndex][2]
+
+});
+
+layers.push(end);
 
     map.fitBounds(line.getBounds());
 
