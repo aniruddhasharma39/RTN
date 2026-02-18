@@ -310,87 +310,72 @@ function makeSelectable(marker, point){
 // ⭐ OSRM MATCH FUNCTION WITH CHUNKIN
 async function getMatchedRoute(raw){
 
-    const CHUNK_SIZE = 100;
+    // ⭐ STEP 1: SAMPLE POINTS every 20th point
+    let sampled = [];
 
-    // ⭐ STEP 1: REMOVE DUPLICATES & VERY CLOSE POINTS
-    let filtered = [];
+    const STEP = 20;
 
-    for(let i=0;i<raw.length;i++){
+    for(let i=0; i<raw.length; i+=STEP){
 
-        if(i===0){
-            filtered.push(raw[i]);
-            continue;
-        }
+        sampled.push(raw[i]);
 
-        let prev = filtered[filtered.length-1];
+    }
 
-        let dist = haversine(
-            prev[0], prev[1],
-            raw[i][0], raw[i][1]
+    // always include last point
+    sampled.push(raw[raw.length-1]);
+
+    // convert format
+    let coords = sampled.map(
+        p => `${p[1]},${p[0]}`
+    ).join(";");
+
+    try{
+
+        let response = await fetch(
+        `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`
         );
 
-        // keep only if > 5 meters
-        if(dist > 0.005){
+        if(!response.ok){
 
-            filtered.push(raw[i]);
+            console.log("OSRM route failed");
+
+            return {
+                coords: raw.map(p=>[p[0],p[1]]),
+                distanceKm: calculateTotalDistance(raw)
+            };
 
         }
+
+        let osrm = await response.json();
+
+        let routeCoords = osrm.routes[0].geometry.coordinates.map(
+            p => [p[1],p[0]]
+        );
+
+        let distanceKm = (osrm.routes[0].distance/1000).toFixed(2);
+
+        return {
+
+            coords: routeCoords,
+
+            distanceKm: distanceKm
+
+        };
 
     }
+    catch(e){
 
-    let finalCoords = [];
+        console.log("OSRM error fallback");
 
-    let totalDistance = 0;
+        return {
 
-    // ⭐ STEP 2: SEND IN CHUNKS
-    for(let i=0;i<filtered.length;i+=CHUNK_SIZE){
+            coords: raw.map(p=>[p[0],p[1]]),
 
-        let chunk = filtered.slice(i,i+CHUNK_SIZE);
+            distanceKm: calculateTotalDistance(raw)
 
-        if(chunk.length < 2) continue;
-
-        let coords = chunk.map(
-            p => `${p[1]},${p[0]}`
-        ).join(";");
-
-        try{
-
-            let response = await fetch(
-            `https://router.project-osrm.org/match/v1/driving/${coords}?overview=full&geometries=geojson`
-            );
-
-            if(!response.ok) continue;
-
-            let osrm = await response.json();
-
-            if(osrm.matchings){
-
-                let part = osrm.matchings[0].geometry.coordinates.map(
-                    p => [p[1], p[0]]
-                );
-
-                finalCoords.push(...part);
-
-                totalDistance += osrm.matchings[0].distance;
-
-            }
-
-        }
-        catch(e){
-
-            console.log("OSRM skipped chunk");
-
-        }
+        };
 
     }
-
-    return {
-
-        coords: finalCoords,
-
-        distanceKm: (totalDistance/1000).toFixed(2)
-
-    };
 
 }
 
