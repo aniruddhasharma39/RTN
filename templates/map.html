@@ -322,7 +322,8 @@ async function loadRoute(){
     let bus=document.getElementById('busSelect').value;
     let date=document.getElementById('dateSelect').value;
 
-    let data = await fetch(`/route/${bus}/${date}`).then(r=>r.json());
+    let data = await fetch(`/route-matched/${bus}/${date}`).then(r=>r.json());
+
 
     if(!data || data.length===0) return;
 
