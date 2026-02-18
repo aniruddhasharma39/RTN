@@ -367,27 +367,20 @@ async function loadRoute(){
     let bus=document.getElementById('busSelect').value;
     let date=document.getElementById('dateSelect').value;
 
-    // RAW DATA (with timestamps)
+    // RAW DATA
     let raw = await fetch(`/route/${bus}/${date}`).then(r=>r.json());
 
     if(!raw || raw.length===0) return;
 
-    // OSRM REQUEST
+    // GET MATCHED ROUTE
     let result = await getMatchedRoute(raw);
 
     let matchedCoords = result.coords;
-    
+
     let totalDistance = result.distanceKm;
 
+    if(!matchedCoords || matchedCoords.length===0) return;
 
-    if(!osrm.matchings) return;
-
-    // MATCHED ROUTE
-
-    // ⭐ TRUE ROAD DISTANCE
-    let totalDistance = (osrm.matchings[0].distance / 1000).toFixed(2);
-
-    // TIME FROM RAW DATA
     let totalTime = calculateTotalTime(raw);
 
     let color = randomColor();
@@ -535,4 +528,3 @@ loadBuses().then(loadDates);
 </script>
 </body>
 </html>
-
