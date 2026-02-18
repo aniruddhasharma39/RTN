@@ -97,15 +97,26 @@ def generate_journey_id(bus_no):
     return f"{bus_no}_{int(time.time())}"
 
 def get_active_journey(bus_no):
+
+    today = datetime.now().strftime("%Y-%m-%d")
+
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
+
     c.execute("""
-        SELECT journey_id FROM journeys
-        WHERE bus_no = ? AND status = 'active'
-    """, (bus_no,))
+        SELECT journey_id
+        FROM journeys
+        WHERE bus_no = ?
+        AND status = 'active'
+        AND departure_date = ?
+    """, (bus_no, today))
+
     row = c.fetchone()
+
     conn.close()
+
     return row[0] if row else None
+
 
 def create_new_journey(bus_no, timestamp):
     journey_id = generate_journey_id(bus_no)
@@ -132,6 +143,25 @@ def end_journey(journey_id, timestamp):
     """, (timestamp, journey_id))
     conn.commit()
     conn.close()
+
+def end_previous_day_journey(bus_no):
+
+    today = datetime.now().strftime("%Y-%m-%d")
+
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+
+    c.execute("""
+        UPDATE journeys
+        SET status = 'ended', end_timestamp = ?
+        WHERE bus_no = ?
+        AND status = 'active'
+        AND departure_date != ?
+    """, (int(time.time()), bus_no, today))
+
+    conn.commit()
+    conn.close()
+
 
 # ================= TRACKING LOOP =================
 
@@ -386,7 +416,9 @@ def websocket_listener(bus):
                 }
     
             state = fleet_state[bus_no]
-    
+            end_previous_day_journey(bus_no)
+            active_journey = get_active_journey(bus_no)
+
             active_journey = get_active_journey(bus_no)
             # Force new journey if database has none
             if active_journey is None:
