@@ -336,8 +336,6 @@ async function loadRoute(){
 
 
     if(!data || data.length===0) return;
-
-    let coords = data.map(r=>[r[0],r[1]]);
     let color = randomColor();
 
     // ================= ROUTE LINE =================
