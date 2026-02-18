@@ -17,6 +17,7 @@ app = Flask(__name__)
 API_URL = "https://reports.yourbus.in/ci/trackApp"
 BUS_FILE = "buses.json"
 DB_FILE = "/data/fleet.db"
+OSRM_URL = "https://router.project-osrm.org"
 CHECK_INTERVAL = 10
 
 STOP_THRESHOLD = 120          # 2 minutes
@@ -671,6 +672,79 @@ def measure():
         "hours": hours,
         "minutes": minutes
     })
+
+# ================= OSRM MAP MATCHING =================
+
+def match_points_osrm(rows):
+
+    if not rows:
+        return []
+
+    # limit points per request (public server safe limit)
+    CHUNK_SIZE = 100
+
+    all_coords = []
+
+    for i in range(0, len(rows), CHUNK_SIZE):
+
+        chunk = rows[i:i+CHUNK_SIZE]
+
+        coords = ";".join(
+            [f"{r[1]},{r[0]}" for r in chunk]
+        )
+
+        url = f"{OSRM_URL}/match/v1/driving/{coords}"
+
+        params = {
+            "overview": "full",
+            "geometries": "geojson"
+        }
+
+        try:
+
+            response = requests.get(url, params=params)
+
+            data = response.json()
+
+            if "matchings" in data:
+
+                geometry = data["matchings"][0]["geometry"]["coordinates"]
+
+                all_coords.extend(
+                    [[lat, lon] for lon, lat in geometry]
+                )
+
+        except Exception as e:
+
+            print("OSRM error:", e)
+
+    return all_coords
+
+
+@app.route("/route-matched/<bus_no>/<departure_date>")
+def route_matched(bus_no, departure_date):
+
+    conn = sqlite3.connect(DB_FILE)
+
+    c = conn.cursor()
+
+    c.execute("""
+        SELECT lat, lon, timestamp
+        FROM trip_points tp
+        JOIN journeys j ON tp.journey_id = j.journey_id
+        WHERE j.bus_no = ?
+        AND j.departure_date = ?
+        ORDER BY timestamp
+    """, (bus_no, departure_date))
+
+    rows = c.fetchall()
+
+    conn.close()
+
+    matched = match_points_osrm(rows)
+
+    return jsonify(matched)
+
 
 # ================= START =================
 
