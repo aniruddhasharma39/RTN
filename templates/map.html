@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html>
 <head>
@@ -322,32 +323,43 @@ async function loadRoute(){
     let bus=document.getElementById('busSelect').value;
     let date=document.getElementById('dateSelect').value;
 
+    // RAW DATA (with timestamps)
     let raw = await fetch(`/route/${bus}/${date}`).then(r=>r.json());
-    
-    let coords = raw.map(p => `${p[1]},${p[0]}`).join(";");
-    
+
+    if(!raw || raw.length===0) return;
+
+    // OSRM REQUEST
+    let osrmCoords = raw.map(p => `${p[1]},${p[0]}`).join(";");
+
     let osrm = await fetch(
-    `https://router.project-osrm.org/match/v1/driving/${coords}?overview=full&geometries=geojson`
+    `https://router.project-osrm.org/match/v1/driving/${osrmCoords}?overview=full&geometries=geojson`
     ).then(r=>r.json());
-    
-    let data = osrm.matchings[0].geometry.coordinates.map(
-    p => [p[1], p[0]]
+
+    if(!osrm.matchings) return;
+
+    // MATCHED ROUTE
+    let matchedCoords = osrm.matchings[0].geometry.coordinates.map(
+        p => [p[1], p[0]]
     );
 
+    // ⭐ TRUE ROAD DISTANCE
+    let totalDistance = (osrm.matchings[0].distance / 1000).toFixed(2);
 
-    if(!data || data.length===0) return;
+    // TIME FROM RAW DATA
+    let totalTime = calculateTotalTime(raw);
+
     let color = randomColor();
 
-    // ================= ROUTE LINE =================
-    let line=L.polyline(coords,{
+    // ROUTE LINE
+    let line=L.polyline(matchedCoords,{
         color:color,
         weight:4
     }).addTo(map);
 
     layers.push(line);
 
-    // ================= 🟢 START POINT =================
-    let start=L.circleMarker(coords[0],{
+    // START MARKER
+    let start=L.circleMarker(matchedCoords[0],{
         radius:7,
         color:"green",
         fillColor:"green",
@@ -355,129 +367,30 @@ async function loadRoute(){
     })
     .bindPopup(
         `<b>Journey Start</b><br>
-        Time: ${formatTimestamp(data[0][2])}`
+        Time: ${formatTimestamp(raw[0][2])}`
     )
     .addTo(map);
 
-    makeSelectable(start, data[0]);  // 👈 selectable
     layers.push(start);
 
-    // ================= BUS MARKER =================
-    let totalDistance=calculateTotalDistance(data);
-    let totalTime=calculateTotalTime(data);
-
-    let busMarker=L.marker(coords[coords.length-1],
+    // BUS MARKER
+    let busMarker=L.marker(
+        matchedCoords[matchedCoords.length-1],
         {icon:createBusIcon(color)}
-    ).bindTooltip(
+    )
+    .bindTooltip(
         `<b>${busLabelMap[bus] || bus}</b><br>
         Distance: ${totalDistance} km<br>
         Time: ${totalTime}`
-    ).addTo(map);
+    )
+    .addTo(map);
 
     layers.push(busMarker);
 
-    // ================= 🟠 TEMPORARY STOP DETECTION =================
-    let stopStartTime = null;
-
-    for(let i=0;i<data.length;i++){
-
-        let point = data[i];
-        let speed = point[3]; // requires backend speed
-
-        // consider <=3 km/h as halted (GPS noise safe)
-        if(speed !== undefined && speed <= 3){
-
-            if(stopStartTime === null){
-                stopStartTime = point[2];
-            }
-
-            let stopDuration = point[2] - stopStartTime;
-
-            // 2 minutes to <1 hour = temporary stop
-            if(stopDuration >= 120 && stopDuration < 3600){
-
-                let stop=L.circleMarker(
-                    [point[0],point[1]],
-                    {
-                        radius:7,
-                        color:"orange",
-                        fillColor:"orange",
-                        fillOpacity:1
-                    }
-                )
-                .bindPopup(
-                    `<b>Temporary Stop</b><br>
-                    Time: ${formatTimestamp(point[2])}<br>
-                    Duration: ${Math.floor(stopDuration/60)} min`
-                )
-                .addTo(map);
-
-                makeSelectable(stop, point);   // 👈 selectable
-                layers.push(stop);
-
-                stopStartTime = null; // prevent duplicates
-            }
-
-        } else {
-            stopStartTime = null;
-        }
-    }
-
-    // ================= 🔴 JOURNEY END (if ended in backend) =================
-    // Detect if last 1 hour has no movement (frontend fallback display)
-
-// ================= 🔴 JOURNEY END (Correct Logic) =================
-
-let idleStartTime = null;
-let lastIdlePoint = null;
-
-for(let i=0;i<data.length;i++){
-
-    let point = data[i];
-    let speed = point[3];
-
-    if(speed !== undefined && speed <= 3){
-
-        if(idleStartTime === null){
-            idleStartTime = point[2];
-            lastIdlePoint = point;
-        }
-
-        let idleDuration = point[2] - idleStartTime;
-
-        if(idleDuration >= 3600){
-
-            let end=L.circleMarker(
-                [point[0],point[1]],
-                {
-                    radius:8,
-                    color:"red",
-                    fillColor:"red",
-                    fillOpacity:1
-                }
-            )
-            .bindPopup(
-                `<b>Journey End</b><br>
-                 Time: ${formatTimestamp(point[2])}<br>
-                 Idle: ${Math.floor(idleDuration/60)} min`
-            )
-            .addTo(map);
-
-            makeSelectable(end, point);
-            layers.push(end);
-
-            break; // Only mark first valid end
-        }
-
-    } else {
-        idleStartTime = null;
-        lastIdlePoint = null;
-    }
-}
-
-    // ================= FIT MAP =================
     map.fitBounds(line.getBounds());
+
 }
+
 
 function isStop(index,data){
     if(index===0) return false;
@@ -580,3 +493,4 @@ loadBuses().then(loadDates);
 </script>
 </body>
 </html>
+
