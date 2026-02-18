@@ -383,9 +383,6 @@ async function loadRoute(){
     if(!osrm.matchings) return;
 
     // MATCHED ROUTE
-    let matchedCoords = osrm.matchings[0].geometry.coordinates.map(
-        p => [p[1], p[0]]
-    );
 
     // ⭐ TRUE ROAD DISTANCE
     let totalDistance = (osrm.matchings[0].distance / 1000).toFixed(2);
