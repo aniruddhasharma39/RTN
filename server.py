@@ -413,10 +413,31 @@ def websocket_listener(bus):
                 fleet_state[bus_no] = {
                     "idle_start_time": None,
                     "idle_location": None,
-                    "last_location": None
+                    "last_location": None,
+                    "last_signal_time": timestamp
                 }
+
     
             state = fleet_state[bus_no]
+            # detect GPS loss
+            if state.get("last_signal_time"):
+            
+                signal_gap = timestamp - state["last_signal_time"]
+            
+                if signal_gap >= 3600:
+            
+                    print("[GPS LOSS END JOURNEY]", bus_no)
+            
+                    if active_journey:
+                        end_journey(active_journey, timestamp)
+            
+                        active_journey = create_new_journey(
+                            bus_no,
+                            timestamp
+                        )
+            
+            state["last_signal_time"] = timestamp
+
             end_previous_day_journey(bus_no)
             active_journey = get_active_journey(bus_no)
 
@@ -635,30 +656,45 @@ def get_all_dates():
     return jsonify([r[0] for r in rows])
 
 
-
 @app.route("/route/<bus_no>/<path:departure_date>")
 def get_route(bus_no, departure_date):
+
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
+
     c.execute("""
-        SELECT journey_id FROM journeys
-        WHERE bus_no = ? AND departure_date = ?
+        SELECT journey_id, status
+        FROM journeys
+        WHERE bus_no = ?
+        AND departure_date = ?
     """, (bus_no, departure_date))
-    journey_ids = [row[0] for row in c.fetchall()]
+
+    journeys = c.fetchall()
 
     all_points = []
+    ended = False
 
-    for jid in journey_ids:
+    for jid, status in journeys:
+
+        if status == "ended":
+            ended = True
+
         c.execute("""
             SELECT lat, lon, timestamp, speed
             FROM trip_points
             WHERE journey_id = ?
             ORDER BY timestamp
         """, (jid,))
+
         all_points.extend(c.fetchall())
 
     conn.close()
-    return jsonify(all_points)
+
+    return jsonify({
+        "points": all_points,
+        "ended": ended
+    })
+
 
 @app.route("/measure", methods=["POST"])
 def measure():
