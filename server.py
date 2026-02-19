@@ -253,6 +253,35 @@ def tracking_loop():
                     }
 
                 active_journey = get_active_journey(bus_no)
+                # FIX: create new journey if last journey date is different
+
+                if active_journey:
+                
+                    conn = sqlite3.connect(DB_FILE)
+                    c = conn.cursor()
+                
+                    c.execute(
+                        "SELECT departure_date FROM journeys WHERE journey_id=?",
+                        (active_journey,)
+                    )
+                
+                    row = c.fetchone()
+                    conn.close()
+                
+                    if row:
+                
+                        journey_date = row[0]
+                
+                        today = datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d")
+                
+                        if journey_date != today:
+                
+                            end_journey(active_journey, timestamp)
+                
+                            active_journey = create_new_journey(bus_no, timestamp)
+                
+                            print("[NEW JOURNEY CREATED]", bus_no)
+
                 
                 state = fleet_state[bus_no]
                 
