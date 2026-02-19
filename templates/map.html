@@ -454,18 +454,6 @@ async function loadRoute(){
     
     }
 
-    
-    if(data.matchings){
-    
-        return data.matchings[0].geometry.coordinates.map(
-            c => [c[1], c[0]]
-        );
-    
-    }
-    
-    return [];
-    });
-
     let totalDistance = calculateTotalDistance(raw);
     if(!matchedCoords || matchedCoords.length===0){
     
