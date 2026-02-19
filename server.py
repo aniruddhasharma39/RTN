@@ -541,6 +541,29 @@ def websocket_listener(bus):
 
     ws.run_forever()
 
+def shift_today_journeys_to_yesterday():
+
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+
+    today = datetime.now().strftime("%Y-%m-%d")
+
+    yesterday = (
+        datetime.now() - timedelta(days=1)
+    ).strftime("%Y-%m-%d")
+
+    print(f"[SHIFT FIX] Moving {today} journeys → {yesterday}")
+
+    c.execute("""
+        UPDATE journeys
+        SET departure_date = ?
+        WHERE departure_date = ?
+    """, (yesterday, today))
+
+    print("[SHIFT FIX] Rows affected:", c.rowcount)
+
+    conn.commit()
+    conn.close()
 
 # ================= ROUTES =================
 
@@ -747,8 +770,18 @@ def route_matched(bus_no, departure_date):
 
 
 # ================= START =================
-
 if __name__ == "__main__":
+
     init_db()
-    threading.Thread(target=tracking_loop, daemon=True).start()
-    app.run(host="0.0.0.0", port=5000)
+
+    shift_today_journeys_to_yesterday()
+
+    threading.Thread(
+        target=tracking_loop,
+        daemon=True
+    ).start()
+
+    app.run(
+        host="0.0.0.0",
+        port=5000
+    )
