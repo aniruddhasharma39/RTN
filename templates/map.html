@@ -608,15 +608,20 @@ for(let i=1;i<raw.length;i++){
                         fillOpacity:1
                     }
                 )
-                .bindPopup(
-                `<b>Stop</b><br>
-                Halt: ${Math.floor(duration/60)} min`
-                )
+                .bindPopup(`<b>Stop Point</b>`)
                 .addTo(map);
-
+                
                 stop.defaultColor="orange";
-
+                
+                // ⭐ THIS IS THE MISSING LINE — CRITICAL
+                makeSelectable(stop,{
+                    lat:raw[i-1][0],
+                    lon:raw[i-1][1],
+                    timestamp:raw[i-1][2]
+                });
+                
                 layers.push(stop);
+
 
             }
 
