@@ -294,10 +294,16 @@ def tracking_loop():
                         if active_journey and idle_duration >= 3600 and distance <= 0.3:
                 
                             print(f"[JOURNEY END] {bus_no}")
-                
                             end_journey(active_journey, timestamp)
-                
-                            active_journey = None
+
+                            # Immediately create new journey for today
+                            active_journey = create_new_journey(bus_no, timestamp)
+                            
+                            print(f"[NEW JOURNEY CREATED AFTER END] {bus_no}")
+                            
+                            state["idle_start_time"] = None
+                            state["idle_start_location"] = None
+
                 
                 
                 # ================= MOVING =================
