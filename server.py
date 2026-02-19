@@ -789,86 +789,12 @@ def route_matched(bus_no, departure_date):
     return jsonify(matched)
 
 
-def merge_today_journey_into_yesterday():
-
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-
-    today = datetime.now().strftime("%Y-%m-%d")
-
-    yesterday = (
-        datetime.now() - timedelta(days=1)
-    ).strftime("%Y-%m-%d")
-
-    print("[MERGE FIX] Running merge...")
-
-    # find buses affected
-    c.execute("""
-        SELECT DISTINCT bus_no
-        FROM journeys
-        WHERE departure_date = ?
-    """, (today,))
-
-    buses = c.fetchall()
-
-    for (bus_no,) in buses:
-
-        # yesterday journey
-        c.execute("""
-            SELECT journey_id
-            FROM journeys
-            WHERE bus_no = ?
-            AND departure_date = ?
-            ORDER BY start_timestamp DESC
-            LIMIT 1
-        """, (bus_no, yesterday))
-
-        y = c.fetchone()
-
-        # today journey
-        c.execute("""
-            SELECT journey_id
-            FROM journeys
-            WHERE bus_no = ?
-            AND departure_date = ?
-            ORDER BY start_timestamp ASC
-            LIMIT 1
-        """, (bus_no, today))
-
-        t = c.fetchone()
-
-        if not y or not t:
-            continue
-
-        y_id = y[0]
-        t_id = t[0]
-
-        print(f"[MERGE] {bus_no} → {t_id} → {y_id}")
-
-        # move trip points
-        c.execute("""
-            UPDATE trip_points
-            SET journey_id = ?
-            WHERE journey_id = ?
-        """, (y_id, t_id))
-
-        # delete wrong journey
-        c.execute("""
-            DELETE FROM journeys
-            WHERE journey_id = ?
-        """, (t_id,))
-
-    conn.commit()
-    conn.close()
-
-    print("[MERGE FIX] Done.")
 
 
 # ================= START =================
 if __name__ == "__main__":
 
     init_db()
-    merge_today_journey_into_yesterday()
     threading.Thread(
         target=tracking_loop,
         daemon=True
