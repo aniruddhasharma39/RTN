@@ -231,18 +231,28 @@ function formatTimestamp(ts){
 
 
 async function focusOnBus(){
+
     let bus=document.getElementById('busSelect').value;
+
     let date=document.getElementById('dateSelect').value;
 
     if(!date) return;
 
-    let data=await fetch(`/route/${bus}/${date}`).then(r=>r.json());
+    let result =
+    await fetch(`/route/${bus}/${date}`)
+    .then(r=>r.json());
 
-    if(data.length>0){
+    let data = result.points;
+
+    if(data && data.length>0){
+
         let last=data[data.length-1];
+
         map.setView([last[0],last[1]],13);
+
     }
 }
+
 
 async function loadAllDates(){
     let dates = await fetch('/all-dates').then(r=>r.json());
@@ -477,11 +487,11 @@ async function loadRoute(){
     if(!raw || raw.length===0) return;
 
     // GET MATCHED ROUTE
-    let result = await getMatchedRoute(raw);
+    let routeResult = await getMatchedRoute(raw);
 
-    let matchedCoords = result.coords;
+    let matchedCoords = routeResult.coords;
 
-    let totalDistance = result.distanceKm;
+    let totalDistance = routeResult.distanceKm;
 
     if(!matchedCoords || matchedCoords.length===0) return;
 
@@ -734,11 +744,16 @@ async function loadAllBuses(){
 
         let bus = b.id;  // ⭐ FIX
 
-        let data=await fetch(`/route/${bus}/${date}`).then(r=>r.json());
-
+        let result =
+        await fetch(`/route/${bus}/${date}`)
+        .then(r=>r.json());
+        
+        let data = result.points;
+        
         if(!data || data.length===0) continue;
-
+        
         let coords=data.map(r=>[r[0],r[1]]);
+
 
         let color=randomColor();
 
