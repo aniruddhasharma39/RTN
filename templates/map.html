@@ -816,20 +816,21 @@ function filterByDirection(points){
 // Removes GPS jitter within 20 meters
 function filterByDistance(points){
 
-    if(points.length===0) return points;
+    if(points.length === 0) return points;
 
-    let filtered=[points[0]];
+    let filtered = [points[0]];
 
-    for(let i=1;i<points.length;i++){
+    for(let i = 1; i < points.length; i++){
 
-        let last=filtered[filtered.length-1];
+        let last = filtered[filtered.length-1];
 
-        let d=haversine(
-            last[0],last[1],
-            points[i][0],points[i][1]
+        let d = haversine(
+            last[0], last[1],
+            points[i][0], points[i][1]
         );
 
-        if(d > 0.005){  // 20 meters
+        // CRITICAL FIX: minimum 15 meters
+        if(d > 0.015){
 
             filtered.push(points[i]);
 
