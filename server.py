@@ -144,23 +144,6 @@ def end_journey(journey_id, timestamp):
     conn.commit()
     conn.close()
 
-def end_previous_day_journey(bus_no):
-
-    today = datetime.now().strftime("%Y-%m-%d")
-
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-
-    c.execute("""
-        UPDATE journeys
-        SET status = 'ended', end_timestamp = ?
-        WHERE bus_no = ?
-        AND status = 'active'
-        AND departure_date != ?
-    """, (int(time.time()), bus_no, today))
-
-    conn.commit()
-    conn.close()
 
 
 # ================= TRACKING LOOP =================
@@ -437,16 +420,38 @@ def websocket_listener(bus):
             
             state["last_signal_time"] = timestamp
 
-            end_previous_day_journey(bus_no)
             active_journey = get_active_journey(bus_no)
 
             active_journey = get_active_journey(bus_no)
             # Force new journey if database has none
             if active_journey is None:
             
-                active_journey = create_new_journey(bus_no, timestamp)
+                # Only create if no previous journey exists
+                conn = sqlite3.connect(DB_FILE)
+                c = conn.cursor()
             
-                print(f"[NEW JOURNEY][WS] {bus_no}")
+                c.execute("""
+                    SELECT journey_id
+                    FROM journeys
+                    WHERE bus_no = ?
+                    ORDER BY start_timestamp DESC
+                    LIMIT 1
+                """, (bus_no,))
+            
+                last = c.fetchone()
+            
+                conn.close()
+            
+                if last is None:
+            
+                    active_journey = create_new_journey(bus_no, timestamp)
+            
+                    print(f"[FIRST JOURNEY][WS] {bus_no}")
+            
+                else:
+            
+                    active_journey = last[0]
+
     
     
             if not active_journey:
