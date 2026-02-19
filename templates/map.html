@@ -417,7 +417,7 @@ async function loadRoute(){
 
     // GET MATCHED ROUTE
     let matchedCoords =
-    await fetch(`/route-matched/${bus}/${date}`)
+    await fetch(`${window.location.origin}/route-matched/${bus}/${date}`)
     .then(r=>r.json());
     let totalDistance = calculateTotalDistance(raw);
     if(!matchedCoords || matchedCoords.length===0){
