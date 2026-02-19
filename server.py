@@ -572,43 +572,39 @@ def websocket_listener(bus):
 def fix_merged_journeys():
 
     conn = sqlite3.connect(DB_FILE)
-
     c = conn.cursor()
 
     print("[FIX] correcting journey status")
 
+    # find latest journey per bus
     c.execute("""
-
-        UPDATE journeys
-
-        SET status = 'active',
-            end_timestamp = NULL
-
+        SELECT journey_id
+        FROM journeys
         WHERE journey_id IN (
-
             SELECT journey_id
-
             FROM trip_points
-
-            WHERE timestamp = (
-
-                SELECT MAX(timestamp)
-
-                FROM trip_points tp
-
-                WHERE tp.journey_id = journeys.journey_id
-
-            )
-
+            GROUP BY journey_id
+            HAVING MAX(timestamp)
         )
-
     """)
 
-    print("[FIX] rows corrected:", c.rowcount)
+    rows = c.fetchall()
+
+    for (jid,) in rows:
+
+        c.execute("""
+            UPDATE journeys
+            SET status='active',
+                end_timestamp=NULL
+            WHERE journey_id=?
+        """, (jid,))
+
+        print("[FIXED]", jid)
 
     conn.commit()
-
     conn.close()
+
+    print("[FIX] done")
 
 
 # ================= ROUTES =================
