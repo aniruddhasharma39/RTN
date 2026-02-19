@@ -416,9 +416,26 @@ async function loadRoute(){
     if(!raw || raw.length===0) return;
 
     // GET MATCHED ROUTE
+    let coords = raw.map(p => `${p[1]},${p[0]}`).join(";");
+
     let matchedCoords =
-    await fetch(`${window.location.origin}/route-matched/${bus}/${date}`)
-    .then(r=>r.json());
+    await fetch(
+    `https://router.project-osrm.org/match/v1/driving/${coords}?overview=full&geometries=geojson`
+    )
+    .then(r=>r.json())
+    .then(data => {
+    
+    if(data.matchings){
+    
+        return data.matchings[0].geometry.coordinates.map(
+            c => [c[1], c[0]]
+        );
+    
+    }
+    
+    return [];
+    });
+
     let totalDistance = calculateTotalDistance(raw);
     if(!matchedCoords || matchedCoords.length===0){
     
