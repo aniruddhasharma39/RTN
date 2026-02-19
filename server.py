@@ -788,6 +788,46 @@ def route_matched(bus_no, departure_date):
 
     return jsonify(matched)
 
+def fix_merged_journeys():
+
+    conn = sqlite3.connect(DB_FILE)
+
+    c = conn.cursor()
+
+    print("[FIX] correcting journey status")
+
+    c.execute("""
+
+        UPDATE journeys
+
+        SET status = 'active',
+            end_timestamp = NULL
+
+        WHERE journey_id IN (
+
+            SELECT journey_id
+
+            FROM trip_points
+
+            WHERE timestamp = (
+
+                SELECT MAX(timestamp)
+
+                FROM trip_points tp
+
+                WHERE tp.journey_id = journeys.journey_id
+
+            )
+
+        )
+
+    """)
+
+    print("[FIX] rows corrected:", c.rowcount)
+
+    conn.commit()
+
+    conn.close()
 
 
 
@@ -795,6 +835,8 @@ def route_matched(bus_no, departure_date):
 if __name__ == "__main__":
 
     init_db()
+    fix_merged_journeys()
+
     threading.Thread(
         target=tracking_loop,
         daemon=True
