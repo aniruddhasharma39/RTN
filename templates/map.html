@@ -429,14 +429,12 @@ async function getMatchedRoute(raw){
         p => `${p[1]},${p[0]}`
     ).join(";");
 
-    let timestamps =
-    sampled.map(p => p[2]).join(";");
 
 
     try{
 
         let response = await fetch(
-        `https://router.project-osrm.org/match/v1/driving/${coords}?overview=full&geometries=geojson&timestamps=${timestamps}&radiuses=${sampled.map(()=>30).join(";")}`
+        `https://router.project-osrm.org/match/v1/driving/${coords}?overview=full&geometries=geojson&radiuses=${sampled.map(()=>30).join(";")}`
         );
 
         if(!response.ok){
