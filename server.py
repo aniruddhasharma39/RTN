@@ -16,7 +16,7 @@ app = Flask(__name__)
 API_URL = "https://reports.yourbus.in/ci/trackApp"
 BUS_FILE = "buses.json"
 DB_FILE = "/data/fleet.db"
-OSRM_URL = "https://router.project-osrm.org"
+OSRM_URL = "https://routing.openstreetmap.de"
 CHECK_INTERVAL = 10
 
 STOP_THRESHOLD = 120          # 2 minutes
