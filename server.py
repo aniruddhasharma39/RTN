@@ -670,11 +670,17 @@ def get_route(bus_no, departure_date):
     journeys = c.fetchall()
 
     all_points = []
-    # Get status of LAST journey of that date
-    last_status = journeys[-1][1] if journeys else "active"
-    
-    ended = (last_status == "ended")
 
+    # ✅ SAFE last journey status detection
+    if journeys:
+        last_status = journeys[-1][1]
+        ended = (last_status == "ended")
+    else:
+        ended = False
+
+
+    # ✅ Load ALL trip points (no data loss)
+    for jid, status in journeys:
 
         c.execute("""
             SELECT lat, lon, timestamp, speed
@@ -685,12 +691,14 @@ def get_route(bus_no, departure_date):
 
         all_points.extend(c.fetchall())
 
+
     conn.close()
 
     return jsonify({
         "points": all_points,
         "ended": ended
     })
+
 
 
 
