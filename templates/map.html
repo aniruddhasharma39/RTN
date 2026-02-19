@@ -596,6 +596,11 @@ for(let i=1;i<raw.length;i++){
 
             if(duration >= 120){
 
+                let stopTime = formatTimestamp(raw[stopStartIndex][2]);
+
+                let stopDurationMinutes =
+                Math.floor(duration/60);
+                
                 let stop=L.circleMarker(
                     [
                         raw[i-1][0],
@@ -608,8 +613,13 @@ for(let i=1;i<raw.length;i++){
                         fillOpacity:1
                     }
                 )
-                .bindPopup(`<b>Stop Point</b>`)
+                .bindPopup(
+                `<b>Stop Point</b><br>
+                Arrival: ${stopTime}<br>
+                Duration: ${stopDurationMinutes} min`
+                )
                 .addTo(map);
+
                 
                 stop.defaultColor="orange";
                 
