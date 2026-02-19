@@ -399,9 +399,14 @@ async function getMatchedRoute(raw){
     // sample points for OSRM stability
     let sampled = [];
     
-    const STEP = 20;
+    const MAX_POINTS = 100;
     
-    for(let i=0;i<filtered.length;i+=STEP){
+    // dynamic sampling
+    let step = Math.ceil(filtered.length / MAX_POINTS);
+    
+    if(step < 1) step = 1;
+    
+    for(let i=0;i<filtered.length;i+=step){
     
         sampled.push(filtered[i]);
     
@@ -421,7 +426,7 @@ async function getMatchedRoute(raw){
     try{
 
         let response = await fetch(
-        `https://router.project-osrm.org/match/v1/driving/${coords}?overview=full&geometries=geojson`
+        `https://router.project-osrm.org/match/v1/driving/${coords}?overview=full&geometries=geojson&timestamps=${timestamps}&radiuses=${sampled.map(()=>30).join(";")}`
         );
 
         if(!response.ok){
