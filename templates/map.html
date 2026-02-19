@@ -619,6 +619,7 @@ for(let i=1;i<raw.length;i++){
 }
 
 // ================= END POINT =================
+if(journeyEnded){
 
 let lastIndex=raw.length-1;
 
@@ -660,7 +661,7 @@ layers.push(end);
     map.fitBounds(line.getBounds());
 
 }
-
+}
 
 function isStop(index,data){
     if(index===0) return false;
