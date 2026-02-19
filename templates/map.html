@@ -389,15 +389,26 @@ Time: ${result.hours}h ${result.minutes}m`
 async function getMatchedRoute(raw){
 
     // ⭐ STEP 1: SAMPLE POINTS every 20th point
+    // ⭐ NEW PROFESSIONAL FILTER PIPELINE
+    
+    let filtered =
+        filterByDistance(
+            filterByDirection(raw)
+        );
+    
+    // sample points for OSRM stability
     let sampled = [];
-
+    
     const STEP = 20;
-
-    for(let i=0; i<raw.length; i+=STEP){
-
-        sampled.push(raw[i]);
-
+    
+    for(let i=0;i<filtered.length;i+=STEP){
+    
+        sampled.push(filtered[i]);
+    
     }
+    
+    sampled.push(filtered[filtered.length-1]);
+
 
     // always include last point
     sampled.push(raw[raw.length-1]);
@@ -410,7 +421,7 @@ async function getMatchedRoute(raw){
     try{
 
         let response = await fetch(
-        `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`
+        `https://router.project-osrm.org/match/v1/driving/${coords}?overview=full&geometries=geojson`
         );
 
         if(!response.ok){
@@ -735,6 +746,87 @@ function haversine(lat1, lon1, lat2, lon2){
 function randomColor(){
     return '#'+Math.floor(Math.random()*16777215).toString(16);
 }
+
+// ================= DIRECTION FILTER =================
+// Removes fake U-turn loops caused by GPS jumping to opposite lane
+function filterByDirection(points){
+
+    if(points.length < 3) return points;
+
+    let filtered = [points[0]];
+
+    for(let i=1;i<points.length-1;i++){
+
+        let prev = filtered[filtered.length-1];
+        let curr = points[i];
+        let next = points[i+1];
+
+        let bearing1 = getBearing(prev, curr);
+        let bearing2 = getBearing(curr, next);
+
+        let diff = Math.abs(bearing1 - bearing2);
+
+        if(diff > 180) diff = 360 - diff;
+
+        // Reject reverse direction (>120° change)
+        if(diff < 120){
+
+            filtered.push(curr);
+
+        }
+
+    }
+
+    filtered.push(points[points.length-1]);
+
+    return filtered;
+}
+
+
+// ================= DISTANCE FILTER =================
+// Removes GPS jitter within 20 meters
+function filterByDistance(points){
+
+    if(points.length===0) return points;
+
+    let filtered=[points[0]];
+
+    for(let i=1;i<points.length;i++){
+
+        let last=filtered[filtered.length-1];
+
+        let d=haversine(
+            last[0],last[1],
+            points[i][0],points[i][1]
+        );
+
+        if(d > 0.02){  // 20 meters
+
+            filtered.push(points[i]);
+
+        }
+
+    }
+
+    return filtered;
+}
+
+
+// ================= BEARING FUNCTION =================
+// Calculates vehicle direction
+function getBearing(a,b){
+
+    let lat1=a[0]*Math.PI/180;
+    let lat2=b[0]*Math.PI/180;
+    let dLon=(b[1]-a[1])*Math.PI/180;
+
+    let y=Math.sin(dLon)*Math.cos(lat2);
+    let x=Math.cos(lat1)*Math.sin(lat2) -
+          Math.sin(lat1)*Math.cos(lat2)*Math.cos(dLon);
+
+    return (Math.atan2(y,x)*180/Math.PI + 360) % 360;
+}
+
 
 async function loadAllBuses(){
 
