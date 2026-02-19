@@ -778,15 +778,19 @@ def measure():
 
 def match_points_osrm(rows):
 
-    if not rows:
+    if len(rows) < 2:
         return []
 
     CHUNK_SIZE = 100
-    all_coords = []
+
+    matched_coords = []
 
     for i in range(0, len(rows), CHUNK_SIZE):
 
         chunk = rows[i:i+CHUNK_SIZE]
+
+        if len(chunk) < 2:
+            continue
 
         coords = ";".join(
             f"{r[1]},{r[0]}" for r in chunk
@@ -797,21 +801,23 @@ def match_points_osrm(rows):
         )
 
         radiuses = ";".join(
-            "20" for _ in chunk
+            "25" for _ in chunk
         )
 
         url = f"{OSRM_URL}/match/v1/driving/{coords}"
 
         params = {
+
             "overview": "full",
             "geometries": "geojson",
             "timestamps": timestamps,
-            "radiuses": radiuses
+            "radiuses": radiuses,
+            "gaps": "ignore"
         }
 
         try:
 
-            res = requests.get(url, params=params, timeout=10)
+            res = requests.get(url, params=params, timeout=15)
 
             data = res.json()
 
@@ -819,15 +825,19 @@ def match_points_osrm(rows):
 
                 geometry = data["matchings"][0]["geometry"]["coordinates"]
 
-                all_coords.extend(
+                matched_coords.extend(
                     [[lat, lon] for lon, lat in geometry]
                 )
+
+            else:
+
+                print("OSRM NoMatch chunk skipped")
 
         except Exception as e:
 
             print("OSRM error:", e)
 
-    return all_coords
+    return matched_coords
 
 
 @app.route("/route-matched/<bus_no>/<departure_date>")
