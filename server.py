@@ -316,7 +316,7 @@ def tracking_loop():
                 
                 # ================= CREATE NEW JOURNEY =================
                 
-                if active_journey is None
+                if active_journey is None:
                 
                     active_journey = create_new_journey(bus_no, timestamp)
                 
