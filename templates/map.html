@@ -399,7 +399,7 @@ async function getMatchedRoute(raw){
     // sample points for OSRM stability
     let sampled = [];
     
-    const MAX_POINTS = 100;
+    const MAX_POINTS = 80;
     
     // dynamic sampling
     let step = Math.ceil(filtered.length / MAX_POINTS);
