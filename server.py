@@ -505,30 +505,58 @@ def websocket_listener(bus):
                     else:
     
                         # vehicle moved
-                        if state["idle_start_time"]:
-
-                            idle_duration = timestamp - state["idle_start_time"]
+                        # ================= IDLE CHECK =================
                         
-                            idle_distance = haversine(
-                                state["idle_location"][0],
-                                state["idle_location"][1],
+                        if state.get("last_location"):
+                        
+                            movement = haversine(
+                                state["last_location"][0],
+                                state["last_location"][1],
                                 lat,
                                 lon
                             )
                         
-                            # END JOURNEY when idle long enough at same place
-                            if idle_duration >= 3600 and idle_distance <= 0.3:
+                        else:
                         
-                                print(f"[JOURNEY END][WS] {bus_no}")
+                            movement = 0
                         
-                                end_journey(active_journey, timestamp)
                         
-                                active_journey = create_new_journey(bus_no, timestamp)
+                        if movement <= 0.05:
                         
-                                print(f"[NEW JOURNEY CREATED][WS] {bus_no}")
+                            if state["idle_start_time"] is None:
                         
-                                state["idle_start_time"] = None
-                                state["idle_location"] = None
+                                state["idle_start_time"] = timestamp
+                                state["idle_location"] = (lat, lon)
+                        
+                            else:
+                        
+                                idle_duration = timestamp - state["idle_start_time"]
+                        
+                                idle_distance = haversine(
+                                    state["idle_location"][0],
+                                    state["idle_location"][1],
+                                    lat,
+                                    lon
+                                )
+                        
+                                if active_journey and idle_duration >= 3600 and idle_distance <= 0.3:
+                        
+                                    print("[WS JOURNEY END]", bus_no)
+                        
+                                    end_journey(active_journey, timestamp)
+                        
+                                    active_journey = create_new_journey(bus_no, timestamp)
+                        
+                                    print("[WS NEW JOURNEY CREATED]", bus_no)
+                        
+                                    state["idle_start_time"] = None
+                                    state["idle_location"] = None
+                        
+                        else:
+                        
+                            state["idle_start_time"] = None
+                            state["idle_location"] = None
+
 
     
             state["last_location"] = (lat, lon)
@@ -751,31 +779,41 @@ def match_points_osrm(rows):
     if not rows:
         return []
 
-    # limit points per request (public server safe limit)
     CHUNK_SIZE = 100
-
     all_coords = []
-    for i in range(0, len(rows)-1, CHUNK_SIZE-1):
+
+    for i in range(0, len(rows), CHUNK_SIZE):
+
         chunk = rows[i:i+CHUNK_SIZE]
 
         coords = ";".join(
-            [f"{r[1]},{r[0]}" for r in chunk]
+            f"{r[1]},{r[0]}" for r in chunk
+        )
+
+        timestamps = ";".join(
+            str(r[2]) for r in chunk
+        )
+
+        radiuses = ";".join(
+            "20" for _ in chunk
         )
 
         url = f"{OSRM_URL}/match/v1/driving/{coords}"
 
         params = {
             "overview": "full",
-            "geometries": "geojson"
+            "geometries": "geojson",
+            "timestamps": timestamps,
+            "radiuses": radiuses
         }
 
         try:
 
-            response = requests.get(url, params=params)
+            res = requests.get(url, params=params, timeout=10)
 
-            data = response.json()
+            data = res.json()
 
-            if "matchings" in data:
+            if data.get("matchings"):
 
                 geometry = data["matchings"][0]["geometry"]["coordinates"]
 
