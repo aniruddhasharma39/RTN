@@ -800,11 +800,12 @@ def route_matched(bus_no, departure_date):
     c.execute("""
         SELECT lat, lon, timestamp
         FROM trip_points tp
-        JOIN journeys j ON tp.journey_id = j.journey_id
-        WHERE j.bus_no = ?
-        AND j.departure_date = ?
+        JOIN journeys j
+        ON tp.journey_id=j.journey_id
+        WHERE bus_no=?
+        AND departure_date LIKE ?
         ORDER BY timestamp
-    """, (bus_no, departure_date))
+        """,(bus_no, departure_date + "%"))
 
     rows = c.fetchall()
 
