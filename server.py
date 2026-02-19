@@ -275,11 +275,12 @@ def tracking_loop():
                     # ================= IDLE =================
 
                 if movement <= 0.05:
-                
+
                     if state["idle_start_time"] is None:
-                
-                        state["idle_start_time"] = state["last_timestamp"]
+                    
+                        state["idle_start_time"] = timestamp
                         state["idle_start_location"] = (lat, lon)
+
                 
                     idle_duration = timestamp - state["idle_start_time"]
                 
@@ -775,34 +776,21 @@ def measure():
     })
 
 # ================= OSRM MAP MATCHING =================
-
 def match_points_osrm(rows):
 
     if len(rows) < 2:
         return []
 
-    CHUNK_SIZE = 100
-
     matched_coords = []
 
-    for i in range(0, len(rows), CHUNK_SIZE):
+    for i in range(len(rows)-1):
 
-        chunk = rows[i:i+CHUNK_SIZE]
+        lat1, lon1, ts1 = rows[i]
+        lat2, lon2, ts2 = rows[i+1]
 
-        if len(chunk) < 2:
-            continue
+        coords = f"{lon1},{lat1};{lon2},{lat2}"
 
-        coords = ";".join(
-            f"{r[1]},{r[0]}" for r in chunk
-        )
-
-        timestamps = ";".join(
-            str(r[2]) for r in chunk
-        )
-
-        radiuses = ";".join(
-            "25" for _ in chunk
-        )
+        timestamps = f"{ts1};{ts2}"
 
         url = f"{OSRM_URL}/match/v1/driving/{coords}"
 
@@ -811,13 +799,13 @@ def match_points_osrm(rows):
             "overview": "full",
             "geometries": "geojson",
             "timestamps": timestamps,
-            "radiuses": radiuses,
+            "radiuses": "30;30",
             "gaps": "ignore"
         }
 
         try:
 
-            res = requests.get(url, params=params, timeout=15)
+            res = requests.get(url, params=params, timeout=10)
 
             data = res.json()
 
@@ -828,10 +816,6 @@ def match_points_osrm(rows):
                 matched_coords.extend(
                     [[lat, lon] for lon, lat in geometry]
                 )
-
-            else:
-
-                print("OSRM NoMatch chunk skipped")
 
         except Exception as e:
 
