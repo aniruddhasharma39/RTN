@@ -98,9 +98,8 @@ def generate_journey_id(bus_no):
 
 def get_active_journey(bus_no):
 
-    today = datetime.now().strftime("%Y-%m-%d")
-
     conn = sqlite3.connect(DB_FILE)
+
     c = conn.cursor()
 
     c.execute("""
@@ -108,8 +107,9 @@ def get_active_journey(bus_no):
         FROM journeys
         WHERE bus_no = ?
         AND status = 'active'
-        AND departure_date = ?
-    """, (bus_no, today))
+        ORDER BY start_timestamp DESC
+        LIMIT 1
+    """, (bus_no,))
 
     row = c.fetchone()
 
@@ -569,29 +569,6 @@ def websocket_listener(bus):
 
     ws.run_forever()
 
-def shift_today_journeys_to_yesterday():
-
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-
-    today = datetime.now().strftime("%Y-%m-%d")
-
-    yesterday = (
-        datetime.now() - timedelta(days=1)
-    ).strftime("%Y-%m-%d")
-
-    print(f"[SHIFT FIX] Moving {today} journeys → {yesterday}")
-
-    c.execute("""
-        UPDATE journeys
-        SET departure_date = ?
-        WHERE departure_date = ?
-    """, (yesterday, today))
-
-    print("[SHIFT FIX] Rows affected:", c.rowcount)
-
-    conn.commit()
-    conn.close()
 
 # ================= ROUTES =================
 
@@ -816,8 +793,6 @@ def route_matched(bus_no, departure_date):
 if __name__ == "__main__":
 
     init_db()
-
-    shift_today_journeys_to_yesterday()
 
     threading.Thread(
         target=tracking_loop,
