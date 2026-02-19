@@ -670,12 +670,11 @@ def get_route(bus_no, departure_date):
     journeys = c.fetchall()
 
     all_points = []
-    ended = True
+    # Get status of LAST journey of that date
+    last_status = journeys[-1][1] if journeys else "active"
+    
+    ended = (last_status == "ended")
 
-    for jid, status in journeys:
-
-        if status == "active":
-            ended = False
 
         c.execute("""
             SELECT lat, lon, timestamp, speed
