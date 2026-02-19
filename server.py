@@ -505,31 +505,31 @@ def websocket_listener(bus):
                     else:
     
                         # vehicle moved
-    
                         if state["idle_start_time"]:
-    
+
                             idle_duration = timestamp - state["idle_start_time"]
-    
-                            # idle ≥ 2 hr AND moved ≥ 5 km → new journey
-                            restart_distance = haversine(
+                        
+                            idle_distance = haversine(
                                 state["idle_location"][0],
                                 state["idle_location"][1],
                                 lat,
                                 lon
                             )
-    
-                            if idle_duration >= 3600 and restart_distance >= 5:
-    
-                                print(f"[SERVICE RESTART][WS] {bus_no}")
-    
+                        
+                            # END JOURNEY when idle long enough at same place
+                            if idle_duration >= 3600 and idle_distance <= 0.3:
+                        
+                                print(f"[JOURNEY END][WS] {bus_no}")
+                        
                                 end_journey(active_journey, timestamp)
-    
+                        
                                 active_journey = create_new_journey(bus_no, timestamp)
-    
-                                print(f"[NEW JOURNEY][WS] {bus_no}")
-    
-                        state["idle_start_time"] = None
-                        state["idle_location"] = None
+                        
+                                print(f"[NEW JOURNEY CREATED][WS] {bus_no}")
+                        
+                                state["idle_start_time"] = None
+                                state["idle_location"] = None
+
     
             state["last_location"] = (lat, lon)
     
