@@ -755,9 +755,7 @@ def match_points_osrm(rows):
     CHUNK_SIZE = 100
 
     all_coords = []
-
-    for i in range(0, len(rows), CHUNK_SIZE):
-
+    for i in range(0, len(rows)-1, CHUNK_SIZE-1):
         chunk = rows[i:i+CHUNK_SIZE]
 
         coords = ";".join(
