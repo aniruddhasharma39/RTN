@@ -248,8 +248,10 @@ def tracking_loop():
                         "state": "ACTIVE",
                         "idle_start_time": None,
                         "idle_start_location": None,
-                        "last_timestamp": None
+                        "last_timestamp": timestamp,
+                        "last_location": None
                     }
+
                 active_journey = get_active_journey(bus_no)
                 
                 state = fleet_state[bus_no]
@@ -270,39 +272,37 @@ def tracking_loop():
                 
                     movement = 0
                 
-                
-                # ================= IDLE =================
-                
+                    # ================= IDLE =================
+
                 if movement <= 0.05:
                 
                     if state["idle_start_time"] is None:
                 
-                        state["idle_start_time"] = timestamp
+                        state["idle_start_time"] = state["last_timestamp"]
                         state["idle_start_location"] = (lat, lon)
                 
-                    else:
+                    idle_duration = timestamp - state["idle_start_time"]
                 
-                        idle_duration = timestamp - state["idle_start_time"]
+                    distance = haversine(
+                        state["idle_start_location"][0],
+                        state["idle_start_location"][1],
+                        lat,
+                        lon
+                    )
                 
-                        distance = haversine(
-                            state["idle_start_location"][0],
-                            state["idle_start_location"][1],
-                            lat,
-                            lon
-                        )
+                    if active_journey and idle_duration >= 3600 and distance <= 0.3:
                 
-                        if active_journey and idle_duration >= 3600 and distance <= 0.3:
+                        print(f"[API JOURNEY END] {bus_no}")
                 
-                            print(f"[JOURNEY END] {bus_no}")
-                            end_journey(active_journey, timestamp)
+                        end_journey(active_journey, timestamp)
+                
+                        active_journey = create_new_journey(bus_no, timestamp)
+                
+                        print(f"[API NEW JOURNEY CREATED] {bus_no}")
+                
+                        state["idle_start_time"] = None
+                        state["idle_start_location"] = None
 
-                            # Immediately create new journey for today
-                            active_journey = create_new_journey(bus_no, timestamp)
-                            
-                            print(f"[NEW JOURNEY CREATED AFTER END] {bus_no}")
-                            
-                            state["idle_start_time"] = None
-                            state["idle_start_location"] = None
 
                 
                 
@@ -324,6 +324,8 @@ def tracking_loop():
                 
                 
                 state["last_location"] = (lat, lon)
+                state["last_timestamp"] = timestamp
+
 
 
                 conn = sqlite3.connect(DB_FILE)
