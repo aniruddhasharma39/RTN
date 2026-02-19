@@ -416,14 +416,44 @@ async function loadRoute(){
     if(!raw || raw.length===0) return;
 
     // GET MATCHED ROUTE
-    let coords = raw.map(p => `${p[1]},${p[0]}`).join(";");
+    // ⭐ LIMIT points to avoid OSRM failure
+    let reduced = raw.filter((_,i)=>i%10===0);
+    
+    let coords = reduced.map(p => `${p[1]},${p[0]}`).join(";");
+    
+    let matchedCoords = [];
+    
+    try{
+    
+        let res =
+        await fetch(
+        `https://router.project-osrm.org/match/v1/driving/${coords}?overview=full&geometries=geojson`
+        );
+    
+        let data = await res.json();
+    
+        if(data.matchings){
+    
+            matchedCoords =
+            data.matchings[0].geometry.coordinates.map(
+                c=>[c[1],c[0]]
+            );
+    
+        }
+    
+    }catch(e){
+    
+        console.log("OSRM failed",e);
+    
+    }
+    
+    // fallback
+    if(matchedCoords.length===0){
+    
+        matchedCoords = raw.map(r=>[r[0],r[1]]);
+    
+    }
 
-    let matchedCoords =
-    await fetch(
-    `https://router.project-osrm.org/match/v1/driving/${coords}?overview=full&geometries=geojson`
-    )
-    .then(r=>r.json())
-    .then(data => {
     
     if(data.matchings){
     
