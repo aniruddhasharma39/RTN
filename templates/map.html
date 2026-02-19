@@ -422,10 +422,11 @@ async function loadRoute(){
     let totalDistance = calculateTotalDistance(raw);
     if(!matchedCoords || matchedCoords.length===0){
     
-        console.log("No matched coords returned");
+        console.log("OSRM failed — using raw path");
     
-        return;
+        matchedCoords = raw.map(r => [r[0], r[1]]);
     }
+
 
 
     let totalTime = calculateTotalTime(raw);
