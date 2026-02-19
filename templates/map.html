@@ -464,7 +464,15 @@ async function loadRoute(){
     let date=document.getElementById('dateSelect').value;
 
     // RAW DATA
-    let raw = await fetch(`/route/${bus}/${date}`).then(r=>r.json());
+    let result =
+    await fetch(`/route/${bus}/${date}`)
+    .then(r=>r.json());
+    
+    let raw = result.points;
+    
+    let journeyEnded =
+    result.ended;
+
 
     if(!raw || raw.length===0) return;
 
@@ -546,53 +554,70 @@ layers.push(busMarker);
 
 // ================= STOP DETECTION =================
 
-let stopStart=null;
+// ================= STOP DETECTION =================
+
+let stopStartIndex = null;
 
 for(let i=1;i<raw.length;i++){
 
-    let gap=raw[i][2]-raw[i-1][2];
+    let dist = haversine(
+        raw[i-1][0],
+        raw[i-1][1],
+        raw[i][0],
+        raw[i][1]
+    );
 
-    if(gap>=120){
+    if(dist <= 0.05){
 
-        let stop=L.circleMarker(
+        if(stopStartIndex === null){
 
-            [raw[i][0],raw[i][1]],
+            stopStartIndex = i-1;
 
-            {
+        }
 
-                radius:7,
+    }
+    else{
 
-                color:"orange",
+        if(stopStartIndex !== null){
 
-                fillColor:"orange",
+            let duration =
+                raw[i-1][2] -
+                raw[stopStartIndex][2];
 
-                fillOpacity:1
+            if(duration >= 120){
+
+                let stop=L.circleMarker(
+                    [
+                        raw[i-1][0],
+                        raw[i-1][1]
+                    ],
+                    {
+                        radius:7,
+                        color:"orange",
+                        fillColor:"orange",
+                        fillOpacity:1
+                    }
+                )
+                .bindPopup(
+                `<b>Stop</b><br>
+                Halt: ${Math.floor(duration/60)} min`
+                )
+                .addTo(map);
+
+                stop.defaultColor="orange";
+
+                layers.push(stop);
 
             }
 
-        )
-        .bindPopup(
-        `<b>Stop</b><br>
-        Time: ${formatTimestamp(raw[i][2])}<br>
-        Halt: ${Math.floor(gap/60)} min`
-        )
-        .addTo(map);
+            stopStartIndex=null;
 
-        stop.defaultColor="orange";
-
-        makeSelectable(stop,{
-
-            lat:raw[i][0],
-            lon:raw[i][1],
-            timestamp:raw[i][2]
-
-        });
-
-        layers.push(stop);
+        }
 
     }
 
 }
+
 // ================= END POINT =================
 
 let lastIndex=raw.length-1;
