@@ -300,12 +300,13 @@ def tracking_loop():
                 
                 
                 # ================= FIRST JOURNEY EVER =================
-                
-                if active_journey is None:
+                # Only create first journey when vehicle is moving
+                if active_journey is None and speed > 5:
                 
                     active_journey = create_new_journey(bus_no, timestamp)
                 
                     print(f"[FIRST JOURNEY] {bus_no}")
+
 
 
                 conn = sqlite3.connect(DB_FILE)
