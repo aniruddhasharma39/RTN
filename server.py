@@ -659,40 +659,40 @@ def get_route(bus_no, departure_date):
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
 
-    # get latest journey of that date
     c.execute("""
         SELECT journey_id, status
         FROM journeys
         WHERE bus_no = ?
         AND departure_date = ?
-        ORDER BY start_timestamp DESC
-        LIMIT 1
+        ORDER BY start_timestamp
     """, (bus_no, departure_date))
 
-    row = c.fetchone()
+    journeys = c.fetchall()
 
-    if not row:
-        return jsonify({"points": [], "ended": False})
+    all_points = []
+    ended = True
 
-    journey_id, status = row
+    for jid, status in journeys:
 
-    ended = (status == "ended")
+        if status == "active":
+            ended = False
 
-    c.execute("""
-        SELECT lat, lon, timestamp, speed
-        FROM trip_points
-        WHERE journey_id = ?
-        ORDER BY timestamp
-    """, (journey_id,))
+        c.execute("""
+            SELECT lat, lon, timestamp, speed
+            FROM trip_points
+            WHERE journey_id = ?
+            ORDER BY timestamp
+        """, (jid,))
 
-    points = c.fetchall()
+        all_points.extend(c.fetchall())
 
     conn.close()
 
     return jsonify({
-        "points": points,
+        "points": all_points,
         "ended": ended
     })
+
 
 
 @app.route("/measure", methods=["POST"])
