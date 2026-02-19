@@ -445,8 +445,36 @@ def websocket_listener(bus):
             state["last_signal_time"] = timestamp
 
             active_journey = get_active_journey(bus_no)
+            # ⭐ FORCE NEW JOURNEY IF DATE CHANGED
+            
+            if active_journey:
+            
+                conn = sqlite3.connect(DB_FILE)
+                c = conn.cursor()
+            
+                c.execute("""
+                SELECT departure_date
+                FROM journeys
+                WHERE journey_id=?
+                """,(active_journey,))
+            
+                row=c.fetchone()
+                conn.close()
+            
+                if row:
+            
+                    journey_date=row[0]
+            
+                    today=datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d")
+            
+                    if journey_date != today:
+            
+                        end_journey(active_journey,timestamp)
+            
+                        active_journey=create_new_journey(bus_no,timestamp)
+            
+                        print("[NEW DAY JOURNEY]",bus_no)
 
-            active_journey = get_active_journey(bus_no)
             # Force new journey if database has none
             if active_journey is None:
             
