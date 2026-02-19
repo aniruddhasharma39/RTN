@@ -414,14 +414,14 @@ async function getMatchedRoute(raw){
     
     sampled.push(filtered[filtered.length-1]);
 
-
-    // always include last point
-    sampled.push(raw[raw.length-1]);
-
     // convert format
     let coords = sampled.map(
         p => `${p[1]},${p[0]}`
     ).join(";");
+
+    let timestamps =
+    sampled.map(p => p[2]).join(";");
+
 
     try{
 
@@ -441,12 +441,14 @@ async function getMatchedRoute(raw){
         }
 
         let osrm = await response.json();
-
-        let routeCoords = osrm.routes[0].geometry.coordinates.map(
+        let routeCoords =
+        osrm.matchings[0].geometry.coordinates.map(
             p => [p[1],p[0]]
         );
+        
+        let distanceKm =
+        (osrm.matchings[0].distance/1000).toFixed(2);
 
-        let distanceKm = (osrm.routes[0].distance/1000).toFixed(2);
 
         return {
 
