@@ -256,7 +256,24 @@ def tracking_loop():
                 
                 # ================= IDLE DETECTION =================
                 
-                if speed <= 3:
+                last_loc = state.get("last_location")
+                
+                if last_loc:
+                
+                    movement = haversine(
+                        last_loc[0],
+                        last_loc[1],
+                        lat,
+                        lon
+                    )
+                else:
+                
+                    movement = 0
+                
+                
+                # ================= IDLE =================
+                
+                if movement <= 0.05:
                 
                     if state["idle_start_time"] is None:
                 
@@ -274,7 +291,6 @@ def tracking_loop():
                             lon
                         )
                 
-                        # END journey after long idle
                         if active_journey and idle_duration >= 3600 and distance <= 0.3:
                 
                             print(f"[JOURNEY END] {bus_no}")
@@ -284,29 +300,24 @@ def tracking_loop():
                             active_journey = None
                 
                 
-                # ================= VEHICLE MOVING =================
+                # ================= MOVING =================
                 
                 else:
-                
-                    # vehicle moved after being idle → start new journey
-                    if active_journey is None:
-                
-                        active_journey = create_new_journey(bus_no, timestamp)
-                
-                        print(f"[NEW JOURNEY AFTER IDLE] {bus_no}")
                 
                     state["idle_start_time"] = None
                     state["idle_start_location"] = None
                 
                 
-                # ================= FIRST JOURNEY EVER =================
-                # Only create first journey when vehicle is moving
-                if active_journey is None and speed > 5:
+                # ================= CREATE NEW JOURNEY =================
+                
+                if active_journey is None and movement > 0.3:
                 
                     active_journey = create_new_journey(bus_no, timestamp)
                 
-                    print(f"[FIRST JOURNEY] {bus_no}")
-
+                    print(f"[NEW JOURNEY AFTER REAL MOVEMENT] {bus_no}")
+                
+                
+                state["last_location"] = (lat, lon)
 
 
                 conn = sqlite3.connect(DB_FILE)
