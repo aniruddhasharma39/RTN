@@ -274,7 +274,7 @@ def tracking_loop():
                 
                     # ================= IDLE =================
 
-                if movement <= 0.05:
+                if movement <= 0.15:
 
                     if state["idle_start_time"] is None:
                     
@@ -291,7 +291,7 @@ def tracking_loop():
                         lon
                     )
                 
-                    if active_journey and idle_duration >= 3600 and distance <= 0.3:
+                    if active_journey and idle_duration >= 3600 and distance <= 0.5:
                 
                         print(f"[API JOURNEY END] {bus_no}")
                 
@@ -524,7 +524,7 @@ def websocket_listener(bus):
                             movement = 0
                         
                         
-                        if movement <= 0.05:
+                        if movement <= 0.15:
                         
                             if state["idle_start_time"] is None:
                         
@@ -782,11 +782,13 @@ def match_points_osrm(rows):
         return []
 
     matched_coords = []
+    STEP = 10
 
-    for i in range(len(rows)-1):
+    for i in range(0, len(rows)-STEP, STEP):
+
 
         lat1, lon1, ts1 = rows[i]
-        lat2, lon2, ts2 = rows[i+1]
+        lat2, lon2, ts2 = rows[i+STEP]
 
         coords = f"{lon1},{lat1};{lon2},{lat2}"
 
