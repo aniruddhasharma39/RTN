@@ -420,9 +420,13 @@ async function loadRoute(){
     await fetch(`/route-matched/${bus}/${date}`)
     .then(r=>r.json());
     let totalDistance = calculateTotalDistance(raw);
+    if(!matchedCoords || matchedCoords.length===0){
+    
+        console.log("No matched coords returned");
+    
+        return;
+    }
 
-
-    if(!matchedCoords || matchedCoords.length===0) return;
 
     let totalTime = calculateTotalTime(raw);
 
