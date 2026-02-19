@@ -386,117 +386,6 @@ Time: ${result.hours}h ${result.minutes}m`
 }
 
 
-async function getMatchedRoute(raw){
-
-    let filtered =
-        filterByDistance(
-            filterByDirection(raw)
-        );
-
-    if(filtered.length < 2){
-
-        return {
-            coords: raw.map(p=>[p[0],p[1]]),
-            distanceKm: calculateTotalDistance(raw)
-        };
-
-    }
-
-    const CHUNK_SIZE = 50;   // safe value
-
-    let finalCoords = [];
-    let totalDistance = 0;
-
-    for(let i=0; i < filtered.length; i += CHUNK_SIZE - 1){
-
-        // overlap 1 point to maintain continuity
-        let chunk =
-            filtered.slice(
-                i,
-                i + CHUNK_SIZE
-            );
-
-        if(chunk.length < 2) continue;
-
-        let coords =
-            chunk.map(
-                p => `${p[1]},${p[0]}`
-            ).join(";");
-
-        let radiuses =
-            chunk.map(()=>30).join(";");
-
-        try{
-
-            let response =
-            await fetch(
-            `https://router.project-osrm.org/match/v1/driving/${coords}?overview=full&geometries=geojson&radiuses=${radiuses}`
-            );
-
-            if(!response.ok){
-
-                console.log("OSRM chunk failed");
-
-                continue;
-
-            }
-
-            let osrm =
-            await response.json();
-
-            let segment =
-            osrm.matchings[0]
-            .geometry.coordinates
-            .map(
-                p=>[p[1],p[0]]
-            );
-
-            let distance =
-            osrm.matchings[0]
-            .distance;
-
-            totalDistance += distance;
-
-            // avoid duplicate join point
-            if(finalCoords.length > 0){
-
-                segment.shift();
-
-            }
-
-            finalCoords.push(
-                ...segment
-            );
-
-        }
-        catch(e){
-
-            console.log("OSRM error");
-
-        }
-
-    }
-
-    if(finalCoords.length === 0){
-
-        return {
-            coords: raw.map(p=>[p[0],p[1]]),
-            distanceKm: calculateTotalDistance(raw)
-        };
-
-    }
-
-    return {
-
-        coords: finalCoords,
-
-        distanceKm:
-        (totalDistance/1000).toFixed(2)
-
-    };
-
-}
-
 
 
 async function loadRoute(){
@@ -527,11 +416,11 @@ async function loadRoute(){
     if(!raw || raw.length===0) return;
 
     // GET MATCHED ROUTE
-    let routeResult = await getMatchedRoute(raw);
+    let matchedCoords =
+    await fetch(`/route-matched/${bus}/${date}`)
+    .then(r=>r.json());
+    let totalDistance = calculateTotalDistance(raw);
 
-    let matchedCoords = routeResult.coords;
-
-    let totalDistance = routeResult.distanceKm;
 
     if(!matchedCoords || matchedCoords.length===0) return;
 
