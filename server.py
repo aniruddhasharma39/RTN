@@ -286,7 +286,7 @@ def tracking_loop():
                             )
                     
                             # END journey after long idle
-                            if idle_duration >= 7200 and distance <= 0.3:
+                            if idle_duration >= 3600 and distance <= 0.3:
                     
                                 if active_journey:
                     
@@ -500,7 +500,7 @@ def websocket_listener(bus):
                                 lon
                             )
     
-                            if idle_duration >= 7200 and restart_distance >= 5:
+                            if idle_duration >= 3600 and restart_distance >= 5:
     
                                 print(f"[SERVICE RESTART][WS] {bus_no}")
     
@@ -569,42 +569,6 @@ def websocket_listener(bus):
 
     ws.run_forever()
 
-def fix_merged_journeys():
-
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-
-    print("[FIX] correcting journey status")
-
-    # find latest journey per bus
-    c.execute("""
-        SELECT journey_id
-        FROM journeys
-        WHERE journey_id IN (
-            SELECT journey_id
-            FROM trip_points
-            GROUP BY journey_id
-            HAVING MAX(timestamp)
-        )
-    """)
-
-    rows = c.fetchall()
-
-    for (jid,) in rows:
-
-        c.execute("""
-            UPDATE journeys
-            SET status='active',
-                end_timestamp=NULL
-            WHERE journey_id=?
-        """, (jid,))
-
-        print("[FIXED]", jid)
-
-    conn.commit()
-    conn.close()
-
-    print("[FIX] done")
 
 
 # ================= ROUTES =================
@@ -832,7 +796,6 @@ def route_matched(bus_no, departure_date):
 if __name__ == "__main__":
 
     init_db()
-    fix_merged_journeys()
 
     threading.Thread(
         target=tracking_loop,
