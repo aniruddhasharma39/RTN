@@ -417,6 +417,7 @@ async function loadRoute(){
 
     // GET MATCHED ROUTE
     // ⭐ LIMIT points to avoid OSRM failure
+    // LIMIT points to avoid OSRM failure
     let reduced = raw.filter((_,i)=>i%10===0);
     
     let coords = reduced.map(p => `${p[1]},${p[0]}`).join(";");
@@ -425,9 +426,8 @@ async function loadRoute(){
     
     try{
     
-        let res =
-        await fetch(
-        `https://router.project-osrm.org/match/v1/driving/${coords}?overview=full&geometries=geojson`
+        let res = await fetch(
+            `https://router.project-osrm.org/match/v1/driving/${coords}?overview=full&geometries=geojson`
         );
     
         let data = await res.json();
