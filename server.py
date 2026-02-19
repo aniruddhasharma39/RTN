@@ -267,42 +267,45 @@ def tracking_loop():
                 # ================= CHECK IDLE =================
 
                 else:
-
                     if speed <= 3:
-
+                    
                         if state["idle_start_time"] is None:
-
+                    
                             state["idle_start_time"] = timestamp
                             state["idle_start_location"] = (lat, lon)
-
+                    
                         else:
-
+                    
                             idle_duration = timestamp - state["idle_start_time"]
-
+                    
                             distance = haversine(
                                 state["idle_start_location"][0],
                                 state["idle_start_location"][1],
                                 lat,
                                 lon
                             )
-
-                            # 2 hour idle AND no movement
+                    
+                            # END journey after long idle
                             if idle_duration >= 7200 and distance <= 0.3:
-
-                                print(f"[JOURNEY END] {bus_no}")
-
-                                end_journey(active_journey, timestamp)
-
-                                active_journey = create_new_journey(bus_no, timestamp)
-
-                                state["idle_start_time"] = None
-                                state["idle_start_location"] = None
-
+                    
+                                if active_journey:
+                    
+                                    print(f"[JOURNEY END] {bus_no}")
+                    
+                                    end_journey(active_journey, timestamp)
+                    
+                                    active_journey = None
                     else:
 
-                        # vehicle moving → reset idle
-                        state["idle_start_time"] = None
-                        state["idle_start_location"] = None
+                    # vehicle moved after idle → start new journey
+                            if active_journey is None:
+                        
+                                active_journey = create_new_journey(bus_no, timestamp)
+                        
+                                print(f"[NEW JOURNEY AFTER IDLE] {bus_no}")
+                        
+                            state["idle_start_time"] = None
+                            state["idle_start_location"] = None
 
 
                 conn = sqlite3.connect(DB_FILE)
