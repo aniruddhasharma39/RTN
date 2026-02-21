@@ -392,69 +392,46 @@ async function loadRoute(){
 
     clearMap();
 
-    let mode=document.getElementById('modeSelect').value;
+    let mode = document.getElementById('modeSelect').value;
 
-    if(mode==='all'){
+    if(mode === 'all'){
         loadAllBuses();
         return;
     }
 
-    let bus=document.getElementById('busSelect').value;
-    let date=document.getElementById('dateSelect').value;
+    let bus = document.getElementById('busSelect').value;
+    let date = document.getElementById('dateSelect').value;
 
-    // RAW DATA
-    let result =
-    await fetch(`/route/${bus}/${date}`)
-    .then(r=>r.json());
-    
+    let result = await fetch(`/route/${bus}/${date}`).then(r => r.json());
+
     let raw = result.points;
-    
-    let journeyEnded =
-    result.ended;
+    let journeyEnded = result.ended;
 
+    if(!raw || raw.length === 0) return;
 
-    if(!raw || raw.length===0) return;
+    raw = filterByDistance(raw);
+    raw = filterByDirection(raw);
 
-    // GET MATCHED ROUTE
-    // ⭐ LIMIT points to avoid OSRM failure
-    // LIMIT points to avoid OSRM failure
-    // Replace the entire OSRM block (~lines 421–448) with this:
-    
-    // Replace the entire OSRM try/catch block in loadRoute() with:
-    
     let matchedCoords = [];
-    
+
     try {
         let res = await fetch(`/route-matched/${bus}/${date}`);
         let data = await res.json();
-        if (data && data.length > 0) {
+        if(data && data.length > 0){
             matchedCoords = data;
         }
     } catch(e) {
         console.log("OSRM failed", e);
     }
-    
-    if (matchedCoords.length === 0) {
+
+    if(matchedCoords.length === 0){
         matchedCoords = raw.map(r => [r[0], r[1]]);
-    }
-    // fallback
-    if(matchedCoords.length===0){
-    
-        matchedCoords = raw.map(r=>[r[0],r[1]]);
-    
     }
 
     let totalDistance = calculateTotalDistance(raw);
-    if(!matchedCoords || matchedCoords.length===0){
-    
-        console.log("OSRM failed — using raw path");
-    
-        matchedCoords = raw.map(r => [r[0], r[1]]);
-    }
-
-
-
     let totalTime = calculateTotalTime(raw);
+
+    // ... rest of the function unchanged
 
     let color = randomColor();
 
