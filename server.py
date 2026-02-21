@@ -15,7 +15,7 @@ app = Flask(__name__)
 API_URL = "https://reports.yourbus.in/ci/trackApp"
 BUS_FILE = "buses.json"
 DB_FILE = "/data/fleet.db"
-OSRM_URL = "https://router.project-osrm.org"
+VALHALLA_URL = "https://valhalla1.openstreetmap.de"
 CHECK_INTERVAL = 10
 
 STOP_THRESHOLD = 120          # 2 minutes
@@ -621,24 +621,31 @@ def measure():
 
 # ================= OSRM MAP MATCHING =================
 
-def match_points_osrm(rows):
+def match_points_valhalla(rows):
+    """
+    Uses Valhalla /trace_attributes for true GPS map matching.
+    All GPS points are preserved and snapped to the real road network.
+    No shortcut routing — every point is matched to its nearest road.
+    """
     if len(rows) < 2:
-        print("[OSRM] Not enough points:", len(rows))
+        print("[VALHALLA] Not enough points:", len(rows))
         return []
 
     # Step 1 — Filter GPS jitter (skip points < 20 metres apart)
+    # This removes stationary GPS noise without losing real movement
     filtered = [rows[0]]
     for row in rows[1:]:
         last = filtered[-1]
         if haversine(last[0], last[1], row[0], row[1]) > 0.02:
             filtered.append(row)
     rows = filtered
-    print(f"[OSRM] After jitter filter: {len(rows)} points")
+    print(f"[VALHALLA] After jitter filter: {len(rows)} points")
 
     if len(rows) < 2:
         return []
 
-    # Step 2 — Split into segments wherever gap > 10 minutes
+    # Step 2 — Split into segments on gaps > 10 minutes
+    # Valhalla cannot match across large time gaps
     MAX_GAP_SECONDS = 600
     segments = []
     current = [rows[0]]
@@ -655,69 +662,89 @@ def match_points_osrm(rows):
     if len(current) >= 2:
         segments.append(current)
 
-    print(f"[OSRM] Split into {len(segments)} continuous segments")
+    print(f"[VALHALLA] Split into {len(segments)} segments")
 
-    # Step 3 — Match each segment independently, batch by 50
-    # NOTE: batch kept at 50 (not 100) to keep URL size small
-    # Coordinates rounded to 5 decimal places to reduce URL length
     matched_coords = []
-    BATCH = 50
+    BATCH = 100  # Valhalla handles up to 200+ points per request
 
     for seg_idx, segment in enumerate(segments):
-        seg_start_time = datetime.fromtimestamp(segment[0][2]).strftime("%H:%M")
-        seg_end_time   = datetime.fromtimestamp(segment[-1][2]).strftime("%H:%M")
-        print(f"[OSRM] Segment {seg_idx}: {len(segment)} pts, {seg_start_time} to {seg_end_time}")
+        seg_start = datetime.fromtimestamp(segment[0][2]).strftime("%H:%M")
+        seg_end   = datetime.fromtimestamp(segment[-1][2]).strftime("%H:%M")
+        print(f"[VALHALLA] Segment {seg_idx}: {len(segment)} pts, {seg_start} to {seg_end}")
 
         for batch_start in range(0, len(segment), BATCH - 1):
             batch = segment[batch_start : batch_start + BATCH]
             if len(batch) < 2:
                 continue
 
-            # Round to 5 decimal places — ~1 metre precision, keeps URL short
-            coords     = ";".join(f"{round(lon,5)},{round(lat,5)}" for lat, lon, ts in batch)
-            timestamps = ";".join(str(ts) for lat, lon, ts in batch)
-            radiuses   = ";".join(["50"] * len(batch))
+            # Build Valhalla shape — each point with lat, lon, type
+            shape = [
+                {
+                    "lat": round(lat, 6),
+                    "lon": round(lon, 6),
+                    "type": "break"
+                }
+                for lat, lon, ts in batch
+            ]
 
-            url = f"{OSRM_URL}/match/v1/driving/{coords}"
-            params = {
-                "overview": "full",
-                "geometries": "geojson",
-                "timestamps": timestamps,
-                "radiuses": radiuses,
-                "gaps": "ignore"
+            payload = {
+                "shape": shape,
+                "costing": "auto",
+                "shape_match": "map_snap",   # true map matching, not routing
+                "filters": {
+                    "attributes": [
+                        "edge.names",
+                        "matched.point",
+                        "matched.type",
+                        "matched.edge_index",
+                        "matched.distance_from_trace_point"
+                    ],
+                    "action": "include"
+                }
             }
 
             try:
-                # Small delay to avoid rate limiting on public OSRM server
                 time.sleep(0.3)
 
-                res = requests.get(url, params=params, timeout=20)
-                print(f"[OSRM] Seg{seg_idx} batch{batch_start}: HTTP {res.status_code}")
+                res = requests.post(
+                    f"{VALHALLA_URL}/trace_attributes",
+                    json=payload,
+                    timeout=30
+                )
+                print(f"[VALHALLA] Seg{seg_idx} batch{batch_start}: HTTP {res.status_code}")
 
                 if res.status_code != 200:
-                    print(f"[OSRM] Non-200 response: {res.text[:200]}")
+                    print(f"[VALHALLA] Error: {res.text[:300]}")
+                    # Fallback: use raw points for this batch
                     matched_coords.extend([[lat, lon] for lat, lon, ts in batch])
                     continue
 
                 data = res.json()
-                code = data.get("code", "?")
-                n    = len(data.get("matchings", []))
-                print(f"[OSRM] code={code} matchings={n}")
 
-                if data.get("matchings"):
-                    for matching in data["matchings"]:
-                        geometry = matching["geometry"]["coordinates"]
-                        matched_coords.extend([[lat, lon] for lon, lat in geometry])
+                # Extract matched points from response
+                matched_points = data.get("matched_points", [])
+                print(f"[VALHALLA] Matched points: {len(matched_points)}")
+
+                if matched_points:
+                    for pt in matched_points:
+                        # Only use points that were actually matched (not unmatched)
+                        if pt.get("type") != "unmatched":
+                            matched_coords.append([pt["lat"], pt["lon"]])
+                        else:
+                            # For unmatched points use original GPS coordinate
+                            orig = batch[matched_points.index(pt)]
+                            matched_coords.append([orig[0], orig[1]])
                 else:
-                    print(f"[OSRM] No match for seg{seg_idx} batch{batch_start} - using raw")
+                    print(f"[VALHALLA] No matched_points in response, using raw")
                     matched_coords.extend([[lat, lon] for lat, lon, ts in batch])
 
             except Exception as e:
-                print(f"[OSRM] Exception seg{seg_idx} batch{batch_start}: {e}")
+                print(f"[VALHALLA] Exception seg{seg_idx} batch{batch_start}: {e}")
                 matched_coords.extend([[lat, lon] for lat, lon, ts in batch])
 
-    print(f"[OSRM] Total matched coords returned: {len(matched_coords)}")
+    print(f"[VALHALLA] Total matched coords: {len(matched_coords)}")
     return matched_coords
+
 
 @app.route("/route-matched/<bus_no>/<path:departure_date>")
 def route_matched(bus_no, departure_date):
@@ -727,17 +754,17 @@ def route_matched(bus_no, departure_date):
         SELECT lat, lon, timestamp
         FROM trip_points tp
         JOIN journeys j
-        ON tp.journey_id=j.journey_id
-        WHERE bus_no=?
+        ON tp.journey_id = j.journey_id
+        WHERE bus_no = ?
         AND departure_date LIKE ?
         ORDER BY timestamp
     """, (bus_no, departure_date + "%"))
     rows = c.fetchall()
     conn.close()
 
-    print(f"[ROUTE-MATCHED] {bus_no} {departure_date} → {len(rows)} raw points from DB")
+    print(f"[ROUTE-MATCHED] {bus_no} {departure_date} - {len(rows)} raw points from DB")
 
-    matched = match_points_osrm(rows)
+    matched = match_points_valhalla(rows)
 
     print(f"[ROUTE-MATCHED] Returning {len(matched)} matched coords")
     return jsonify(matched)
