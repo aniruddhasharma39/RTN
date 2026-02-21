@@ -661,19 +661,24 @@ def match_points_osrm(rows):
         }
 
         try:
-            print(f"[OSRM] Sending batch {batch_start}–{batch_start+len(batch)} ({len(batch)} pts) to {url}")
+            print(f"[OSRM] Sending batch {batch_start}–{batch_start+len(batch)}")
+            print(f"[OSRM] First point: {batch[0]}, Last point: {batch[-1]}")
+            print(f"[OSRM] First timestamp: {batch[0][2]}, Last timestamp: {batch[-1][2]}")
+            print(f"[OSRM] URL: {url}")
+            
             res = requests.get(url, params=params, timeout=15)
-            print(f"[OSRM] Response status: {res.status_code}")
+            print(f"[OSRM] HTTP status: {res.status_code}")
+            
             data = res.json()
-            print(f"[OSRM] Response code: {data.get('code')}, matchings: {len(data.get('matchings', []))}")
-
+            print(f"[OSRM] Full response: {json.dumps(data)[:500]}")  # first 500 chars
+            
             if data.get("matchings"):
                 for matching in data["matchings"]:
                     geometry = matching["geometry"]["coordinates"]
                     matched_coords.extend([[lat, lon] for lon, lat in geometry])
             else:
-                print(f"[OSRM] No matchings in response: {data}")
-
+                print(f"[OSRM] code={data.get('code')} message={data.get('message','')}")
+        
         except Exception as e:
             print(f"[OSRM] Exception: {e}")
 
@@ -703,6 +708,26 @@ def route_matched(bus_no, departure_date):
 
     print(f"[ROUTE-MATCHED] Returning {len(matched)} matched coords")
     return jsonify(matched)
+
+@app.route("/debug/<bus_no>/<path:departure_date>")
+def debug_points(bus_no, departure_date):
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("""
+        SELECT lat, lon, timestamp
+        FROM trip_points tp
+        JOIN journeys j ON tp.journey_id=j.journey_id
+        WHERE bus_no=? AND departure_date LIKE ?
+        ORDER BY timestamp
+        LIMIT 10
+    """, (bus_no, departure_date + "%"))
+    rows = c.fetchall()
+    conn.close()
+    return jsonify([{
+        "lat": r[0], "lon": r[1],
+        "timestamp": r[2],
+        "human_time": datetime.fromtimestamp(r[2]).strftime("%Y-%m-%d %H:%M:%S")
+    } for r in rows])
 
 
 # ================= START =================
