@@ -667,55 +667,7 @@ def websocket_listener(bus):
 
     ws.run_forever()
 
-def match_points_osrm(rows):
-    if len(rows) < 2:
-        return []
 
-    # ── Filter GPS jitter: skip points closer than 20 metres ──
-    filtered = [rows[0]]
-    for row in rows[1:]:
-        last = filtered[-1]
-        if haversine(last[0], last[1], row[0], row[1]) > 0.02:  # 20 metres
-            filtered.append(row)
-    rows = filtered
-
-    if len(rows) < 2:
-        return []
-
-    matched_coords = []
-    BATCH = 100
-
-    for batch_start in range(0, len(rows), BATCH - 1):
-        batch = rows[batch_start : batch_start + BATCH]
-        if len(batch) < 2:
-            continue
-
-        coords = ";".join(f"{lon},{lat}" for lat, lon, ts in batch)
-        timestamps = ";".join(str(ts) for lat, lon, ts in batch)
-        radiuses = ";".join(["50"] * len(batch))  # increased to 50m for better matching
-
-        url = f"{OSRM_URL}/match/v1/driving/{coords}"
-        params = {
-            "overview": "full",
-            "geometries": "geojson",
-            "timestamps": timestamps,
-            "radiuses": radiuses,
-            "gaps": "ignore"
-        }
-
-        try:
-            res = requests.get(url, params=params, timeout=15)
-            data = res.json()
-
-            if data.get("matchings"):
-                for matching in data["matchings"]:
-                    geometry = matching["geometry"]["coordinates"]
-                    matched_coords.extend([[lat, lon] for lon, lat in geometry])
-
-        except Exception as e:
-            print("OSRM error:", e)
-
-    return matched_coords
 
 
 # ================= ROUTES =================
@@ -874,7 +826,56 @@ def measure():
     })
 
 # ================= OSRM MAP MATCHING =================
+def match_points_osrm(rows):
+    if len(rows) < 2:
+        return []
 
+    # ── Filter GPS jitter: skip points closer than 20 metres ──
+    filtered = [rows[0]]
+    for row in rows[1:]:
+        last = filtered[-1]
+        if haversine(last[0], last[1], row[0], row[1]) > 0.02:  # 20 metres
+            filtered.append(row)
+    rows = filtered
+
+    if len(rows) < 2:
+        return []
+
+    matched_coords = []
+    BATCH = 100
+
+    for batch_start in range(0, len(rows), BATCH - 1):
+        batch = rows[batch_start : batch_start + BATCH]
+        if len(batch) < 2:
+            continue
+
+        coords = ";".join(f"{lon},{lat}" for lat, lon, ts in batch)
+        timestamps = ";".join(str(ts) for lat, lon, ts in batch)
+        radiuses = ";".join(["50"] * len(batch))  # increased to 50m for better matching
+
+        url = f"{OSRM_URL}/match/v1/driving/{coords}"
+        params = {
+            "overview": "full",
+            "geometries": "geojson",
+            "timestamps": timestamps,
+            "radiuses": radiuses,
+            "gaps": "ignore"
+        }
+
+        try:
+            res = requests.get(url, params=params, timeout=15)
+            data = res.json()
+
+            if data.get("matchings"):
+                for matching in data["matchings"]:
+                    geometry = matching["geometry"]["coordinates"]
+                    matched_coords.extend([[lat, lon] for lon, lat in geometry])
+
+        except Exception as e:
+            print("OSRM error:", e)
+
+    return matched_coords
+    
 @app.route("/route-matched/<bus_no>/<path:departure_date>")
 def route_matched(bus_no, departure_date):
 
