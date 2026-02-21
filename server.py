@@ -620,19 +620,17 @@ def measure():
 
 
 # ================= OSRM MAP MATCHING =================
-
 def match_points_valhalla(rows):
     """
-    Uses Valhalla /trace_attributes for true GPS map matching.
-    All GPS points are preserved and snapped to the real road network.
-    No shortcut routing — every point is matched to its nearest road.
+    Uses Valhalla /trace_route for true GPS map matching.
+    Returns FULL road geometry (every curve and bend),
+    not just the snapped GPS points.
     """
     if len(rows) < 2:
         print("[VALHALLA] Not enough points:", len(rows))
         return []
 
     # Step 1 — Filter GPS jitter (skip points < 20 metres apart)
-    # This removes stationary GPS noise without losing real movement
     filtered = [rows[0]]
     for row in rows[1:]:
         last = filtered[-1]
@@ -644,8 +642,7 @@ def match_points_valhalla(rows):
     if len(rows) < 2:
         return []
 
-    # Step 2 — Split into segments on gaps > 10 minutes
-    # Valhalla cannot match across large time gaps
+    # Step 2 — Split on gaps > 10 minutes
     MAX_GAP_SECONDS = 600
     segments = []
     current = [rows[0]]
@@ -665,7 +662,7 @@ def match_points_valhalla(rows):
     print(f"[VALHALLA] Split into {len(segments)} segments")
 
     matched_coords = []
-    BATCH = 100  # Valhalla handles up to 200+ points per request
+    BATCH = 100
 
     for seg_idx, segment in enumerate(segments):
         seg_start = datetime.fromtimestamp(segment[0][2]).strftime("%H:%M")
@@ -677,29 +674,20 @@ def match_points_valhalla(rows):
             if len(batch) < 2:
                 continue
 
-            # Build Valhalla shape — each point with lat, lon, type
+            # Build shape for Valhalla
             shape = [
-                {
-                    "lat": round(lat, 6),
-                    "lon": round(lon, 6),
-                    "type": "break"
-                }
+                {"lat": round(lat, 6), "lon": round(lon, 6)}
                 for lat, lon, ts in batch
             ]
 
             payload = {
                 "shape": shape,
                 "costing": "auto",
-                "shape_match": "map_snap",   # true map matching, not routing
-                "filters": {
-                    "attributes": [
-                        "edge.names",
-                        "matched.point",
-                        "matched.type",
-                        "matched.edge_index",
-                        "matched.distance_from_trace_point"
-                    ],
-                    "action": "include"
+                "shape_match": "map_snap",
+                # encoded_polyline6 gives full road geometry with all curves
+                "trace_options": {
+                    "search_radius": 50,
+                    "interpolation_distance": 5
                 }
             }
 
@@ -707,7 +695,7 @@ def match_points_valhalla(rows):
                 time.sleep(0.3)
 
                 res = requests.post(
-                    f"{VALHALLA_URL}/trace_attributes",
+                    "https://valhalla1.openstreetmap.de/trace_route",
                     json=payload,
                     timeout=30
                 )
@@ -715,27 +703,29 @@ def match_points_valhalla(rows):
 
                 if res.status_code != 200:
                     print(f"[VALHALLA] Error: {res.text[:300]}")
-                    # Fallback: use raw points for this batch
                     matched_coords.extend([[lat, lon] for lat, lon, ts in batch])
                     continue
 
                 data = res.json()
 
-                # Extract matched points from response
-                matched_points = data.get("matched_points", [])
-                print(f"[VALHALLA] Matched points: {len(matched_points)}")
+                # Extract full road geometry from each leg of each trip
+                trips = data.get("trip", {})
+                legs  = trips.get("legs", [])
+                print(f"[VALHALLA] Legs: {len(legs)}")
 
-                if matched_points:
-                    for pt in matched_points:
-                        # Only use points that were actually matched (not unmatched)
-                        if pt.get("type") != "unmatched":
-                            matched_coords.append([pt["lat"], pt["lon"]])
-                        else:
-                            # For unmatched points use original GPS coordinate
-                            orig = batch[matched_points.index(pt)]
-                            matched_coords.append([orig[0], orig[1]])
+                leg_coords = []
+                for leg in legs:
+                    # Decode the encoded polyline6 to get every road coordinate
+                    encoded = leg.get("shape", "")
+                    if encoded:
+                        decoded = decode_polyline6(encoded)
+                        leg_coords.extend(decoded)
+                        print(f"[VALHALLA] Leg shape decoded: {len(decoded)} coords")
+
+                if leg_coords:
+                    matched_coords.extend(leg_coords)
                 else:
-                    print(f"[VALHALLA] No matched_points in response, using raw")
+                    print(f"[VALHALLA] No leg geometry — using raw points")
                     matched_coords.extend([[lat, lon] for lat, lon, ts in batch])
 
             except Exception as e:
@@ -744,6 +734,49 @@ def match_points_valhalla(rows):
 
     print(f"[VALHALLA] Total matched coords: {len(matched_coords)}")
     return matched_coords
+
+
+def decode_polyline6(encoded):
+    """
+    Decodes a Valhalla encoded polyline6 string into [lat, lon] pairs.
+    Valhalla uses precision=6 (multiply by 1e6), unlike Google's precision=5.
+    """
+    coords = []
+    index = 0
+    lat = 0
+    lon = 0
+
+    while index < len(encoded):
+        # Decode latitude
+        result = 0
+        shift = 0
+        while True:
+            b = ord(encoded[index]) - 63
+            index += 1
+            result |= (b & 0x1f) << shift
+            shift += 5
+            if b < 0x20:
+                break
+        dlat = ~(result >> 1) if (result & 1) else (result >> 1)
+        lat += dlat
+
+        # Decode longitude
+        result = 0
+        shift = 0
+        while True:
+            b = ord(encoded[index]) - 63
+            index += 1
+            result |= (b & 0x1f) << shift
+            shift += 5
+            if b < 0x20:
+                break
+        dlon = ~(result >> 1) if (result & 1) else (result >> 1)
+        lon += dlon
+
+        # Valhalla precision is 1e6
+        coords.append([lat / 1e6, lon / 1e6])
+
+    return coords
 
 
 @app.route("/route-matched/<bus_no>/<path:departure_date>")
