@@ -532,14 +532,8 @@ def websocket_listener(bus):
                 else:
                     state["last_location"] = (lat, lon)
                     return  # wait for actual movement
-    
-            if not active_journey:
-    
-                #active_journey = create_new_journey(bus_no, timestamp)
-    
-                #print(f"[NEW JOURNEY][WS] {bus_no}")
-    
-            else:
+
+                if active_journey:
     
                 last_location = state.get("last_location")
     
