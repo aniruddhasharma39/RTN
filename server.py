@@ -345,12 +345,24 @@ def tracking_loop():
                 
                 
                 # ================= CREATE NEW JOURNEY =================
-                
+
                 if active_journey is None:
                 
-                    active_journey = create_new_journey(bus_no, timestamp)
+                    # Only create a journey if the bus is actually moving
+                    if speed > MOVEMENT_THRESHOLD:
                 
-                    print(f"[NEW JOURNEY AFTER REAL MOVEMENT] {bus_no}")
+                        active_journey = create_new_journey(bus_no, timestamp)
+                
+                        print(f"[NEW JOURNEY AFTER REAL MOVEMENT] {bus_no}")
+                
+                    else:
+                
+                        # Bus is stationary at server start — skip this ping
+                        print(f"[SKIP] {bus_no} stationary at restart, no journey created")
+                
+                        time.sleep(10)
+                
+                        continue
                 
                 
                 state["last_location"] = (lat, lon)
@@ -507,39 +519,25 @@ def websocket_listener(bus):
             # Force new journey if database has none
             if active_journey is None:
             
-                # Only create if no previous journey exists
-                conn = sqlite3.connect(DB_FILE)
-                c = conn.cursor()
+                # Don't reuse an ended journey — only create if bus is moving
+                last_loc = state.get("last_location")
+                moved = False
             
-                c.execute("""
-                    SELECT journey_id
-                    FROM journeys
-                    WHERE bus_no = ?
-                    ORDER BY start_timestamp DESC
-                    LIMIT 1
-                """, (bus_no,))
+                if last_loc:
+                    moved = haversine(last_loc[0], last_loc[1], lat, lon) > RESUME_DISTANCE_KM
             
-                last = c.fetchone()
-            
-                conn.close()
-            
-                if last is None:
-            
+                if moved:
                     active_journey = create_new_journey(bus_no, timestamp)
-            
                     print(f"[FIRST JOURNEY][WS] {bus_no}")
-            
                 else:
-            
-                    active_journey = last[0]
-
-    
+                    state["last_location"] = (lat, lon)
+                    return  # wait for actual movement
     
             if not active_journey:
     
-                active_journey = create_new_journey(bus_no, timestamp)
+                #active_journey = create_new_journey(bus_no, timestamp)
     
-                print(f"[NEW JOURNEY][WS] {bus_no}")
+                #print(f"[NEW JOURNEY][WS] {bus_no}")
     
             else:
     
