@@ -626,7 +626,7 @@ def match_points_osrm(rows):
         print("[OSRM] Not enough points:", len(rows))
         return []
 
-    # Step 1 - Filter GPS jitter (skip points closer than 20 metres)
+    # Step 1 — Filter GPS jitter (skip points < 20 metres apart)
     filtered = [rows[0]]
     for row in rows[1:]:
         last = filtered[-1]
@@ -638,8 +638,7 @@ def match_points_osrm(rows):
     if len(rows) < 2:
         return []
 
-    # Step 2 - Split into segments wherever gap > 10 minutes
-    # OSRM rejects batches with large time gaps between consecutive points
+    # Step 2 — Split into segments wherever gap > 10 minutes
     MAX_GAP_SECONDS = 600
     segments = []
     current = [rows[0]]
@@ -658,9 +657,11 @@ def match_points_osrm(rows):
 
     print(f"[OSRM] Split into {len(segments)} continuous segments")
 
-    # Step 3 - Match each segment independently, batch by 100
+    # Step 3 — Match each segment independently, batch by 50
+    # NOTE: batch kept at 50 (not 100) to keep URL size small
+    # Coordinates rounded to 5 decimal places to reduce URL length
     matched_coords = []
-    BATCH = 100
+    BATCH = 50
 
     for seg_idx, segment in enumerate(segments):
         seg_start_time = datetime.fromtimestamp(segment[0][2]).strftime("%H:%M")
@@ -672,7 +673,8 @@ def match_points_osrm(rows):
             if len(batch) < 2:
                 continue
 
-            coords     = ";".join(f"{lon},{lat}" for lat, lon, ts in batch)
+            # Round to 5 decimal places — ~1 metre precision, keeps URL short
+            coords     = ";".join(f"{round(lon,5)},{round(lat,5)}" for lat, lon, ts in batch)
             timestamps = ";".join(str(ts) for lat, lon, ts in batch)
             radiuses   = ";".join(["50"] * len(batch))
 
@@ -686,19 +688,28 @@ def match_points_osrm(rows):
             }
 
             try:
-                res = requests.get(url, params=params, timeout=15)
+                # Small delay to avoid rate limiting on public OSRM server
+                time.sleep(0.3)
+
+                res = requests.get(url, params=params, timeout=20)
+                print(f"[OSRM] Seg{seg_idx} batch{batch_start}: HTTP {res.status_code}")
+
+                if res.status_code != 200:
+                    print(f"[OSRM] Non-200 response: {res.text[:200]}")
+                    matched_coords.extend([[lat, lon] for lat, lon, ts in batch])
+                    continue
+
                 data = res.json()
                 code = data.get("code", "?")
                 n    = len(data.get("matchings", []))
-                print(f"[OSRM] Seg{seg_idx} batch{batch_start}: HTTP {res.status_code} code={code} matchings={n}")
+                print(f"[OSRM] code={code} matchings={n}")
 
                 if data.get("matchings"):
                     for matching in data["matchings"]:
                         geometry = matching["geometry"]["coordinates"]
                         matched_coords.extend([[lat, lon] for lon, lat in geometry])
                 else:
-                    # Fallback: straight lines for this batch only
-                    print(f"[OSRM] No match for seg{seg_idx} batch{batch_start} - using raw for this batch")
+                    print(f"[OSRM] No match for seg{seg_idx} batch{batch_start} - using raw")
                     matched_coords.extend([[lat, lon] for lat, lon, ts in batch])
 
             except Exception as e:
@@ -707,7 +718,6 @@ def match_points_osrm(rows):
 
     print(f"[OSRM] Total matched coords returned: {len(matched_coords)}")
     return matched_coords
-
 
 @app.route("/route-matched/<bus_no>/<path:departure_date>")
 def route_matched(bus_no, departure_date):
