@@ -420,36 +420,21 @@ async function loadRoute(){
     // LIMIT points to avoid OSRM failure
     // Replace the entire OSRM block (~lines 421–448) with this:
     
+    // Replace the entire OSRM try/catch block in loadRoute() with:
+    
     let matchedCoords = [];
     
     try {
-        // Subsample: 1 point per 5 (max ~100 points for OSRM)
-        let reduced = raw.filter((_, i) => i % Math.max(1, Math.floor(raw.length / 100)) === 0);
-        
-        let coords = reduced.map(p => `${p[1]},${p[0]}`).join(";");
-        let timestamps = reduced.map(p => p[2]).join(";");
-        let radiuses = reduced.map(() => "30").join(";");
-    
-        let res = await fetch(
-            `https://router.project-osrm.org/match/v1/driving/${coords}` +
-            `?overview=full&geometries=geojson&timestamps=${timestamps}&radiuses=${radiuses}&gaps=ignore`
-        );
-    
+        let res = await fetch(`/route-matched/${bus}/${date}`);
         let data = await res.json();
-    
-        if (data.matchings && data.matchings.length > 0) {
-            // Stitch all matchings (OSRM may return multiple segments)
-            for (let m of data.matchings) {
-                matchedCoords.push(...m.geometry.coordinates.map(c => [c[1], c[0]]));
-            }
+        if (data && data.length > 0) {
+            matchedCoords = data;
         }
-    
     } catch(e) {
         console.log("OSRM failed", e);
     }
     
     if (matchedCoords.length === 0) {
-        console.log("OSRM failed — using raw path");
         matchedCoords = raw.map(r => [r[0], r[1]]);
     }
     // fallback
