@@ -864,7 +864,7 @@ def match_points_osrm(rows):
 
     return matched_coords
 
-@app.route("/route-matched/<bus_no>/<path:departure_date>"):
+@app.route("/route-matched/<bus_no>/<path:departure_date>")
 def route_matched(bus_no, departure_date):
 
     conn = sqlite3.connect(DB_FILE)
