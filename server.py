@@ -890,62 +890,6 @@ def debug_count(bus_no, departure_date):
         "total_journeys": len(journeys)
     })
 
-@app.route("/admin-reset-partial")
-def reset_partial():
-    # Delete everything before noon today (21 Feb 2026, 12:00:00 IST = 06:30:00 UTC)
-    # IST is UTC+5:30, so 12:00 IST = 1771671000 Unix timestamp
-    cutoff_ts = 1771671000  # 21 Feb 2026 12:00:00 IST
-
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-
-    # Find all journey_ids that started before cutoff
-    c.execute("""
-        SELECT journey_id FROM journeys
-        WHERE start_timestamp < ?
-    """, (cutoff_ts,))
-    old_journey_ids = [r[0] for r in c.fetchall()]
-
-    # Delete their trip_points
-    for jid in old_journey_ids:
-        c.execute("DELETE FROM trip_points WHERE journey_id = ?", (jid,))
-
-    # Delete the journeys themselves
-    c.execute("DELETE FROM journeys WHERE start_timestamp < ?", (cutoff_ts,))
-
-    # Also delete any trip_points after cutoff that belong to old journeys
-    # (in case a journey started before cutoff but had points after)
-    c.execute("""
-        DELETE FROM trip_points
-        WHERE journey_id NOT IN (SELECT journey_id FROM journeys)
-    """)
-
-    conn.commit()
-
-    # Verify
-    c.execute("SELECT COUNT(*) FROM trip_points")
-    pts = c.fetchone()[0]
-    c.execute("SELECT COUNT(*) FROM journeys")
-    jrn = c.fetchone()[0]
-    c.execute("SELECT MIN(timestamp), MAX(timestamp) FROM trip_points")
-    row = c.fetchone()
-    conn.close()
-
-    # Reset memory so fresh journeys create immediately
-    global fleet_state, ws_started
-    fleet_state = {}
-    ws_started = {}
-
-    return jsonify({
-        "status": "PARTIAL RESET COMPLETE",
-        "deleted_journeys": len(old_journey_ids),
-        "trip_points_remaining": pts,
-        "journeys_remaining": jrn,
-        "earliest_point": datetime.fromtimestamp(row[0]).strftime("%Y-%m-%d %H:%M:%S") if row[0] else None,
-        "latest_point": datetime.fromtimestamp(row[1]).strftime("%Y-%m-%d %H:%M:%S") if row[1] else None,
-        "message": "Remove this route from server.py immediately after use."
-    })
-    
 # ================= START =================
 if __name__ == "__main__":
     init_db()
