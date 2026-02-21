@@ -626,7 +626,7 @@ def match_points_osrm(rows):
         print("[OSRM] Not enough points:", len(rows))
         return []
 
-    # Step 1 — Filter GPS jitter (skip points < 20 metres apart)
+    # Step 1 - Filter GPS jitter (skip points closer than 20 metres)
     filtered = [rows[0]]
     for row in rows[1:]:
         last = filtered[-1]
@@ -638,8 +638,8 @@ def match_points_osrm(rows):
     if len(rows) < 2:
         return []
 
-    # Step 2 — Split into segments wherever gap > 10 minutes
-    # OSRM rejects batches with large time gaps between points
+    # Step 2 - Split into segments wherever gap > 10 minutes
+    # OSRM rejects batches with large time gaps between consecutive points
     MAX_GAP_SECONDS = 600
     segments = []
     current = [rows[0]]
@@ -658,7 +658,7 @@ def match_points_osrm(rows):
 
     print(f"[OSRM] Split into {len(segments)} continuous segments")
 
-    # Step 3 — Match each segment independently, batch by 100
+    # Step 3 - Match each segment independently, batch by 100
     matched_coords = []
     BATCH = 100
 
@@ -697,8 +697,8 @@ def match_points_osrm(rows):
                         geometry = matching["geometry"]["coordinates"]
                         matched_coords.extend([[lat, lon] for lon, lat in geometry])
                 else:
-                    # Fallback: use straight lines for this batch only
-                    print(f"[OSRM] No match — using raw straight line for this batch")
+                    # Fallback: straight lines for this batch only
+                    print(f"[OSRM] No match for seg{seg_idx} batch{batch_start} - using raw for this batch")
                     matched_coords.extend([[lat, lon] for lat, lon, ts in batch])
 
             except Exception as e:
@@ -707,18 +707,6 @@ def match_points_osrm(rows):
 
     print(f"[OSRM] Total matched coords returned: {len(matched_coords)}")
     return matched_coords
-```
-
----
-
-After deploying this, your Railway logs will show something like:
-```
-[OSRM] Split into 8 continuous segments
-[OSRM] Segment 0: 12 pts, 00:00→00:04
-[OSRM] Segment 0 batch0: HTTP 200 code=Ok matchings=1
-[OSRM] Segment 1: 6 pts, 00:12→00:59
-...
-[OSRM] Total matched coords returned: 847
 
 
 @app.route("/route-matched/<bus_no>/<path:departure_date>")
@@ -743,26 +731,6 @@ def route_matched(bus_no, departure_date):
 
     print(f"[ROUTE-MATCHED] Returning {len(matched)} matched coords")
     return jsonify(matched)
-
-@app.route("/debug/<bus_no>/<path:departure_date>")
-def debug_points(bus_no, departure_date):
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("""
-        SELECT lat, lon, timestamp
-        FROM trip_points tp
-        JOIN journeys j ON tp.journey_id=j.journey_id
-        WHERE bus_no=? AND departure_date LIKE ?
-        ORDER BY timestamp
-        LIMIT 10
-    """, (bus_no, departure_date + "%"))
-    rows = c.fetchall()
-    conn.close()
-    return jsonify([{
-        "lat": r[0], "lon": r[1],
-        "timestamp": r[2],
-        "human_time": datetime.fromtimestamp(r[2]).strftime("%Y-%m-%d %H:%M:%S")
-    } for r in rows])
 
 
 # ================= START =================
