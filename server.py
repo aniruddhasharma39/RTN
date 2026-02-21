@@ -533,7 +533,7 @@ def websocket_listener(bus):
                     state["last_location"] = (lat, lon)
                     return  # wait for actual movement
 
-                if active_journey:
+            if active_journey:
     
                 last_location = state.get("last_location")
     
