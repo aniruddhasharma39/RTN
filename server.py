@@ -845,6 +845,51 @@ def debug_gaps(bus_no, departure_date):
         "all_points": result
     })
 
+@app.route("/debug-count/<bus_no>/<path:departure_date>")
+def debug_count(bus_no, departure_date):
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+
+    # What /route fetches
+    c.execute("""
+        SELECT COUNT(*) FROM trip_points tp
+        JOIN journeys j ON tp.journey_id = j.journey_id
+        WHERE j.bus_no = ? AND j.departure_date = ?
+    """, (bus_no, departure_date))
+    route_count = c.fetchone()[0]
+
+    # What /route-matched fetches
+    c.execute("""
+        SELECT COUNT(*) FROM trip_points tp
+        JOIN journeys j ON tp.journey_id = j.journey_id
+        WHERE j.bus_no = ? AND j.departure_date LIKE ?
+    """, (bus_no, departure_date + "%"))
+    matched_count = c.fetchone()[0]
+
+    # How many journeys exist for this day
+    c.execute("""
+        SELECT journey_id, start_timestamp, end_timestamp, status,
+               (SELECT COUNT(*) FROM trip_points WHERE journey_id = j.journey_id) as point_count
+        FROM journeys j
+        WHERE bus_no = ? AND departure_date = ?
+        ORDER BY start_timestamp
+    """, (bus_no, departure_date))
+    journeys = [{"journey_id": r[0],
+                 "start": datetime.fromtimestamp(r[1]).strftime("%H:%M:%S"),
+                 "end": datetime.fromtimestamp(r[2]).strftime("%H:%M:%S") if r[2] else None,
+                 "status": r[3],
+                 "points": r[4]} for r in c.fetchall()]
+
+    conn.close()
+
+    return jsonify({
+        "route_endpoint_count": route_count,
+        "route_matched_endpoint_count": matched_count,
+        "counts_match": route_count == matched_count,
+        "journeys": journeys,
+        "total_journeys": len(journeys)
+    })
+    
 # ================= START =================
 if __name__ == "__main__":
     init_db()
