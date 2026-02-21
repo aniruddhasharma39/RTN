@@ -665,7 +665,7 @@ def match_points_osrm(rows):
     for seg_idx, segment in enumerate(segments):
         seg_start_time = datetime.fromtimestamp(segment[0][2]).strftime("%H:%M")
         seg_end_time   = datetime.fromtimestamp(segment[-1][2]).strftime("%H:%M")
-        print(f"[OSRM] Segment {seg_idx}: {len(segment)} pts, {seg_start_time}→{seg_end_time}")
+        print(f"[OSRM] Segment {seg_idx}: {len(segment)} pts, {seg_start_time} to {seg_end_time}")
 
         for batch_start in range(0, len(segment), BATCH - 1):
             batch = segment[batch_start : batch_start + BATCH]
