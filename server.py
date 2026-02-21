@@ -802,6 +802,48 @@ def route_matched(bus_no, departure_date):
     print(f"[ROUTE-MATCHED] Returning {len(matched)} matched coords")
     return jsonify(matched)
 
+@app.route("/debug-gaps/<bus_no>/<path:departure_date>")
+def debug_gaps(bus_no, departure_date):
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("""
+        SELECT lat, lon, timestamp, speed
+        FROM trip_points tp
+        JOIN journeys j ON tp.journey_id = j.journey_id
+        WHERE bus_no = ?
+        AND departure_date LIKE ?
+        ORDER BY timestamp
+    """, (bus_no, departure_date + "%"))
+    rows = c.fetchall()
+    conn.close()
+
+    result = []
+    for i, row in enumerate(rows):
+        lat, lon, ts, speed = row
+        gap = 0
+        if i > 0:
+            gap = ts - rows[i-1][2]
+        result.append({
+            "index": i,
+            "lat": lat,
+            "lon": lon,
+            "time": datetime.fromtimestamp(ts).strftime("%H:%M:%S"),
+            "timestamp": ts,
+            "speed": speed,
+            "gap_seconds": gap,
+            "gap_minutes": round(gap / 60, 1),
+            "BIG_GAP": gap > 600   # flag gaps > 10 minutes
+        })
+
+    total = len(rows)
+    big_gaps = [r for r in result if r["BIG_GAP"]]
+
+    return jsonify({
+        "total_points": total,
+        "big_gaps_count": len(big_gaps),
+        "big_gaps": big_gaps,
+        "all_points": result
+    })
 
 # ================= START =================
 if __name__ == "__main__":
