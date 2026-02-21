@@ -360,7 +360,7 @@ def tracking_loop():
                         # Bus is stationary at server start — skip this ping
                         print(f"[SKIP] {bus_no} stationary at restart, no journey created")
                 
-                        time.sleep(10)
+                
                 
                         continue
                 
@@ -466,7 +466,7 @@ def websocket_listener(bus):
 
     
             state = fleet_state[bus_no]
-            # detect GPS loss
+            active_journey = get_active_journey(bus_no) 
             if state.get("last_signal_time"):
             
                 signal_gap = timestamp - state["last_signal_time"]
