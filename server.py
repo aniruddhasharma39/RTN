@@ -139,6 +139,57 @@ def end_journey(journey_id, timestamp):
     conn.commit()
     conn.close()
 
+_last_stale_check = 0   # module-level: tracks when we last ran cleanup
+
+def auto_end_stale_journeys():
+    """
+    Runs automatically inside the tracking loop every 10 minutes.
+    Ends any active journey whose last GPS ping is more than 1 hour old.
+    This handles:
+      - Buses that stopped pinging after reaching destination
+      - Buses whose GPS device went offline/sleep
+      - Journeys that survived a server restart mid-idle
+    End timestamp is set to the last actual ping time, not current time.
+    """
+    global _last_stale_check
+    now = int(time.time())
+
+    # Only run once every 10 minutes
+    if now - _last_stale_check < 600:
+        return
+
+    _last_stale_check = now
+    cutoff = now - 3600   # pings older than 1 hour
+
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("""
+        SELECT j.journey_id,
+               j.bus_no,
+               j.departure_date,
+               MAX(tp.timestamp) as last_ping
+        FROM journeys j
+        LEFT JOIN trip_points tp ON tp.journey_id = j.journey_id
+        WHERE j.status = 'active'
+        GROUP BY j.journey_id
+        HAVING last_ping < ? OR last_ping IS NULL
+    """, (cutoff,))
+    stale = c.fetchall()
+    conn.close()
+
+    if not stale:
+        return
+
+    print(f"[STALE CLEANUP] Found {len(stale)} stale journey(s)")
+    for journey_id, bus_no, dep_date, last_ping in stale:
+        end_ts = last_ping if last_ping else now
+        idle_min = round((now - end_ts) / 60)
+        end_journey(journey_id, end_ts)
+        # Also clear in-memory state so next departure creates a fresh journey
+        if bus_no in fleet_state:
+            fleet_state[bus_no]["idle_start_time"] = None
+            fleet_state[bus_no]["idle_start_location"] = None
+        print(f"[STALE END] {bus_no} / {dep_date} — idle {idle_min} min")
 
 
 # ================= TRACKING LOOP =================
@@ -319,6 +370,7 @@ def tracking_loop():
         except Exception as e:
             print("Tracking Error:", e)
 
+        auto_end_stale_journeys()   # ← runs every 10 min, skips otherwise
         time.sleep(10)
 
 
@@ -1017,6 +1069,71 @@ def fix_split_journeys():
         "merged_details": merged
     })
 
+# ================= CLEANUP STALE JOURNEYS =================
+
+@app.route("/end-stale-journeys", methods=["GET", "POST"])
+def end_stale_journeys():
+    """
+    GET  → dry run: shows what would be ended, no changes made
+    POST → actually ends all stale active journeys
+
+    Stale = active journey whose last GPS ping was more than 1 hour ago.
+    End timestamp is set to the time of the last actual ping, not now.
+    """
+    dry_run = (request.method == "GET")
+    now = int(time.time())
+    cutoff = now - 3600
+
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+
+    c.execute("""
+        SELECT j.journey_id,
+               j.bus_no,
+               j.departure_date,
+               j.start_timestamp,
+               MAX(tp.timestamp) as last_ping,
+               COUNT(tp.id)      as point_count
+        FROM journeys j
+        LEFT JOIN trip_points tp ON tp.journey_id = j.journey_id
+        WHERE j.status = 'active'
+        GROUP BY j.journey_id
+        HAVING last_ping < ? OR last_ping IS NULL
+        ORDER BY j.bus_no, j.start_timestamp
+    """, (cutoff,))
+
+    rows = c.fetchall()
+    results = []
+
+    for row in rows:
+        journey_id, bus_no, dep_date, start_ts, last_ping, point_count = row
+        last_ping_str = ts_to_ist(last_ping).strftime("%Y-%m-%d %H:%M:%S") if last_ping else "NO PINGS"
+        idle_minutes  = round((now - last_ping) / 60) if last_ping else None
+        end_ts        = last_ping if last_ping else start_ts
+
+        results.append({
+            "journey_id":   journey_id,
+            "bus_no":       bus_no,
+            "date":         dep_date,
+            "started":      ts_to_ist(start_ts).strftime("%Y-%m-%d %H:%M:%S"),
+            "last_ping":    last_ping_str,
+            "idle_minutes": idle_minutes,
+            "point_count":  point_count,
+            "action":       "would_end" if dry_run else "ended"
+        })
+
+        if not dry_run:
+            end_journey(journey_id, end_ts)
+            print(f"[STALE END] {bus_no} / {dep_date} — idle {idle_minutes} min, {point_count} points")
+
+    conn.close()
+
+    return jsonify({
+        "dry_run":     dry_run,
+        "now_ist":     ts_to_ist(now).strftime("%Y-%m-%d %H:%M:%S"),
+        "stale_count": len(results),
+        "journeys":    results
+    })
 
 # ================= START =================
 if __name__ == "__main__":
