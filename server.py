@@ -7,10 +7,21 @@ import random
 import sqlite3
 import websocket
 from math import radians, sin, cos, sqrt, atan2
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from flask import Flask, render_template, jsonify, request
 
 app = Flask(__name__)
+
+# ---- IST Timezone (UTC+5:30) ----
+IST = timezone(timedelta(hours=5, minutes=30))
+
+def now_ist():
+    """Current datetime in IST."""
+    return datetime.now(IST)
+
+def ts_to_ist(timestamp):
+    """Convert a Unix timestamp to an IST-aware datetime."""
+    return datetime.fromtimestamp(timestamp, tz=IST)
 
 API_URL = "https://reports.yourbus.in/ci/trackApp"
 BUS_FILE = "buses.json"
@@ -106,7 +117,7 @@ def get_active_journey(bus_no):
 
 def create_new_journey(bus_no, timestamp):
     journey_id = generate_journey_id(bus_no)
-    departure_date = datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d")
+    departure_date = ts_to_ist(timestamp).strftime("%Y-%m-%d")
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute("""
@@ -223,24 +234,9 @@ def tracking_loop():
 
                 active_journey = get_active_journey(bus_no)
 
-                # End journey if date changed
-                if active_journey:
-                    conn = sqlite3.connect(DB_FILE)
-                    c = conn.cursor()
-                    c.execute(
-                        "SELECT departure_date FROM journeys WHERE journey_id=?",
-                        (active_journey,)
-                    )
-                    row = c.fetchone()
-                    conn.close()
-
-                    if row:
-                        journey_date = row[0]
-                        today = datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d")
-                        if journey_date != today:
-                            end_journey(active_journey, timestamp)
-                            active_journey = create_new_journey(bus_no, timestamp)
-                            print("[NEW JOURNEY CREATED]", bus_no)
+                # NOTE: Date-change logic removed intentionally.
+                # Journeys for overnight runs must NOT be split at midnight.
+                # Journey end is determined solely by 1-hour idle threshold below.
 
                 state = fleet_state[bus_no]
 
@@ -321,7 +317,7 @@ def websocket_listener(bus):
     def on_open(ws):
         payload = {
             "serviceNo": service_no,
-            "doj": datetime.now().strftime("%Y-%m-%d"),
+            "doj": now_ist().strftime("%Y-%m-%d"),
             "trackingType": "full-tracking"
         }
         ws.send(json.dumps(payload))
@@ -380,25 +376,9 @@ def websocket_listener(bus):
             # Re-fetch after possible GPS loss journey change
             active_journey = get_active_journey(bus_no)
 
-            # ================= DATE CHANGE CHECK =================
-            if active_journey:
-                conn = sqlite3.connect(DB_FILE)
-                c = conn.cursor()
-                c.execute("""
-                    SELECT departure_date
-                    FROM journeys
-                    WHERE journey_id=?
-                """, (active_journey,))
-                row = c.fetchone()
-                conn.close()
-
-                if row:
-                    journey_date = row[0]
-                    today = datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d")
-                    if journey_date != today:
-                        end_journey(active_journey, timestamp)
-                        active_journey = create_new_journey(bus_no, timestamp)
-                        print("[NEW DAY JOURNEY]", bus_no)
+            # NOTE: Date-change logic removed intentionally.
+            # Overnight journeys must NOT be split at midnight.
+            # Journey end is controlled solely by 1-hour idle / GPS loss criteria.
 
             # ================= NO ACTIVE JOURNEY — WAIT FOR MOVEMENT =================
             if active_journey is None:
@@ -665,8 +645,8 @@ def match_points_valhalla(rows):
     BATCH = 100
 
     for seg_idx, segment in enumerate(segments):
-        seg_start = datetime.fromtimestamp(segment[0][2]).strftime("%H:%M")
-        seg_end   = datetime.fromtimestamp(segment[-1][2]).strftime("%H:%M")
+        seg_start = ts_to_ist(segment[0][2]).strftime("%H:%M")
+        seg_end   = ts_to_ist(segment[-1][2]).strftime("%H:%M")
         print(f"[VALHALLA] Segment {seg_idx}: {len(segment)} pts, {seg_start} to {seg_end}")
 
         for batch_start in range(0, len(segment), BATCH - 1):
@@ -827,7 +807,7 @@ def debug_gaps(bus_no, departure_date):
             "index": i,
             "lat": lat,
             "lon": lon,
-            "time": datetime.fromtimestamp(ts).strftime("%H:%M:%S"),
+            "time": ts_to_ist(ts).strftime("%H:%M:%S"),
             "timestamp": ts,
             "speed": speed,
             "gap_seconds": gap,
@@ -875,8 +855,8 @@ def debug_count(bus_no, departure_date):
         ORDER BY start_timestamp
     """, (bus_no, departure_date))
     journeys = [{"journey_id": r[0],
-                 "start": datetime.fromtimestamp(r[1]).strftime("%H:%M:%S"),
-                 "end": datetime.fromtimestamp(r[2]).strftime("%H:%M:%S") if r[2] else None,
+                 "start": ts_to_ist(r[1]).strftime("%H:%M:%S"),
+                 "end": ts_to_ist(r[2]).strftime("%H:%M:%S") if r[2] else None,
                  "status": r[3],
                  "points": r[4]} for r in c.fetchall()]
 
@@ -889,6 +869,128 @@ def debug_count(bus_no, departure_date):
         "journeys": journeys,
         "total_journeys": len(journeys)
     })
+
+# ================= FIX SPLIT JOURNEYS API =================
+
+@app.route("/fix-split-journeys", methods=["GET", "POST"])
+def fix_split_journeys():
+    """
+    API to detect and merge overnight journeys that were incorrectly split at midnight.
+
+    GET  /fix-split-journeys          → Preview only (dry run), shows what would be merged
+    POST /fix-split-journeys          → Actually merges the split journeys in the database
+
+    A split is detected when:
+      - Journey A ended between 00:00 and 06:00 IST (midnight-cut window)
+      - Journey B started on the next calendar day
+      - The gap between end of A and start of B is less than 15 minutes
+        (meaning it wasn't a real stop — just an artificial midnight cut)
+
+    On merge:
+      - All GPS points (trip_points) of Journey B are reassigned to Journey A
+      - Journey A's end_timestamp is extended to cover Journey B's endpoint
+      - Journey A inherits Journey B's status (active/ended)
+      - Journey B is deleted from the journeys table
+    """
+
+    dry_run = (request.method == "GET")
+
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+
+    c.execute("""
+        SELECT journey_id, bus_no, departure_date, start_timestamp, end_timestamp, status
+        FROM journeys
+        ORDER BY bus_no, start_timestamp
+    """)
+    all_journeys = c.fetchall()
+
+    from collections import defaultdict
+    by_bus = defaultdict(list)
+    for j in all_journeys:
+        by_bus[j["bus_no"]].append(dict(j))
+
+    candidates = []
+    for bus_no, journeys in by_bus.items():
+        for i in range(len(journeys) - 1):
+            a = journeys[i]
+            b = journeys[i + 1]
+
+            if a["end_timestamp"] is None:
+                continue
+
+            end_dt   = ts_to_ist(a["end_timestamp"])
+            start_dt = ts_to_ist(b["start_timestamp"])
+            gap_secs = b["start_timestamp"] - a["end_timestamp"]
+
+            # Ended between midnight and 06:00 → likely a midnight-cut, not a real stop
+            midnight_cut = (0 <= end_dt.hour < 6)
+            next_day     = (a["departure_date"] != b["departure_date"])
+            short_gap    = (gap_secs < 900)  # less than 15 minutes
+
+            if midnight_cut and next_day and short_gap:
+                candidates.append({
+                    "keep_journey_id":  a["journey_id"],
+                    "drop_journey_id":  b["journey_id"],
+                    "bus_no":           bus_no,
+                    "keep_date":        a["departure_date"],
+                    "drop_date":        b["departure_date"],
+                    "journey_a_ended":  end_dt.strftime("%Y-%m-%d %H:%M:%S"),
+                    "journey_b_started":start_dt.strftime("%Y-%m-%d %H:%M:%S"),
+                    "gap_seconds":      gap_secs,
+                    "gap_minutes":      round(gap_secs / 60, 1)
+                })
+
+    if not candidates:
+        conn.close()
+        return jsonify({
+            "status": "nothing_to_fix",
+            "message": "No incorrectly split overnight journeys found.",
+            "merged_count": 0
+        })
+
+    if dry_run:
+        conn.close()
+        return jsonify({
+            "status": "preview",
+            "message": f"Found {len(candidates)} split journey(s). Send a POST request to /fix-split-journeys to apply the merge.",
+            "would_merge": candidates
+        })
+
+    # ---- Apply merges (POST only) ----
+    merged = []
+    for pair in candidates:
+        keep_id = pair["keep_journey_id"]
+        drop_id = pair["drop_journey_id"]
+
+        # 1. Move all GPS points from the dropped journey into the kept journey
+        c.execute("UPDATE trip_points SET journey_id=? WHERE journey_id=?", (keep_id, drop_id))
+
+        # 2. Extend kept journey's end_timestamp and inherit status from dropped journey
+        c.execute("SELECT end_timestamp, status FROM journeys WHERE journey_id=?", (drop_id,))
+        drop_row = c.fetchone()
+        if drop_row:
+            c.execute("""
+                UPDATE journeys
+                SET end_timestamp=?, status=?
+                WHERE journey_id=?
+            """, (drop_row["end_timestamp"], drop_row["status"], keep_id))
+
+        # 3. Delete the now-empty dropped journey
+        c.execute("DELETE FROM journeys WHERE journey_id=?", (drop_id,))
+        merged.append(pair)
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({
+        "status":        "success",
+        "message":       f"Merged {len(merged)} split overnight journey(s) successfully.",
+        "merged_count":  len(merged),
+        "merged_details": merged
+    })
+
 
 # ================= START =================
 if __name__ == "__main__":
