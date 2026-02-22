@@ -288,6 +288,8 @@ async function loadRoute(){
         return;
     }
 
+    let rawUnfiltered = raw.slice(); // ← ADDED: keep original for stop detection
+
     // Apply filters
     let beforeDist = raw.length;
     raw = filterByDistance(raw);
@@ -362,28 +364,58 @@ async function loadRoute(){
     layers.push(busMarker);
 
     // ================= STOP DETECTION =================
+    // ================= STOP DETECTION =================
+    // Uses rawUnfiltered — the original GPS points before filters removed
+    // stationary pings. Filters delete clustered points which are exactly
+    // what a parked bus produces, making stops invisible if we use filtered data.
     let stopStartIndex = null;
-    for(let i = 1; i < raw.length; i++){
-        let dist = haversine(raw[i-1][0], raw[i-1][1], raw[i][0], raw[i][1]);
-        if(dist <= 0.05){
+    for(let i = 1; i < rawUnfiltered.length; i++){
+        let dist = haversine(rawUnfiltered[i-1][0], rawUnfiltered[i-1][1],
+                             rawUnfiltered[i][0],   rawUnfiltered[i][1]);
+        if(dist <= 0.15){
+            // 150m radius — handles GPS drift on stationary vehicles.
+            // Old value was 50m which was too tight; drift at fuel stations
+            // under canopy or near buildings can exceed 50m easily.
             if(stopStartIndex === null) stopStartIndex = i-1;
         } else {
             if(stopStartIndex !== null){
-                let duration = raw[i-1][2] - raw[stopStartIndex][2];
+                let duration = rawUnfiltered[i-1][2] - rawUnfiltered[stopStartIndex][2];
                 if(duration >= 120){
-                    let stopTime = formatTimestamp(raw[stopStartIndex][2]);
+                    let stopTime = formatTimestamp(rawUnfiltered[stopStartIndex][2]);
                     let stopMins = Math.floor(duration/60);
-                    let stop = L.circleMarker([raw[i-1][0], raw[i-1][1]], {
+                    let stopLat  = rawUnfiltered[stopStartIndex][0];
+                    let stopLon  = rawUnfiltered[stopStartIndex][1];
+                    let stop = L.circleMarker([stopLat, stopLon], {
                         radius:7, color:"orange", fillColor:"orange", fillOpacity:1
                     })
                     .bindPopup(`<b>Stop Point</b><br>Arrival: ${stopTime}<br>Duration: ${stopMins} min`)
                     .addTo(map);
                     stop.defaultColor = "orange";
-                    makeSelectable(stop, { lat:raw[i-1][0], lon:raw[i-1][1], timestamp:raw[i-1][2] });
+                    makeSelectable(stop, { lat:stopLat, lon:stopLon,
+                                          timestamp:rawUnfiltered[stopStartIndex][2] });
                     layers.push(stop);
                 }
                 stopStartIndex = null;
             }
+        }
+    }
+    // Catch a stop still ongoing at end of journey
+    if(stopStartIndex !== null){
+        let duration = rawUnfiltered[rawUnfiltered.length-1][2] - rawUnfiltered[stopStartIndex][2];
+        if(duration >= 120){
+            let stopTime = formatTimestamp(rawUnfiltered[stopStartIndex][2]);
+            let stopMins = Math.floor(duration/60);
+            let stopLat  = rawUnfiltered[stopStartIndex][0];
+            let stopLon  = rawUnfiltered[stopStartIndex][1];
+            let stop = L.circleMarker([stopLat, stopLon], {
+                radius:7, color:"orange", fillColor:"orange", fillOpacity:1
+            })
+            .bindPopup(`<b>Stop Point</b><br>Arrival: ${stopTime}<br>Duration: ${stopMins} min`)
+            .addTo(map);
+            stop.defaultColor = "orange";
+            makeSelectable(stop, { lat:stopLat, lon:stopLon,
+                                   timestamp:rawUnfiltered[stopStartIndex][2] });
+            layers.push(stop);
         }
     }
 
