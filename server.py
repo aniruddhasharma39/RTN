@@ -438,12 +438,10 @@ def websocket_listener(bus):
                                     state["idle_location"][1],
                                     lat, lon
                                 )
-
                                 if active_journey and idle_duration >= 3600 and idle_distance <= 0.3:
                                     print("[WS JOURNEY END]", bus_no)
                                     end_journey(active_journey, timestamp)
-                                    active_journey = create_new_journey(bus_no, timestamp)
-                                    print("[WS NEW JOURNEY CREATED]", bus_no)
+                                    active_journey = None   # ✅ wait for real movement
                                     state["idle_start_time"] = None
                                     state["idle_location"] = None
                         else:
