@@ -279,10 +279,9 @@ def tracking_loop():
                     idle_duration = timestamp - state["idle_start_time"]
 
                     if active_journey and idle_duration >= 3600:
-                        print(f"[API JOURNEY END] {bus_no}")
+                        print(f"[API JOURNEY END] {bus_no} after {idle_duration//60} min idle")
                         end_journey(active_journey, timestamp)
-                        active_journey = create_new_journey(bus_no, timestamp)
-                        print(f"[API NEW JOURNEY CREATED] {bus_no}")
+                        active_journey = None          # ← do NOT create new journey here
                         state["idle_start_time"] = None
                         state["idle_start_location"] = None
 
