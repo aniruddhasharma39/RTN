@@ -584,20 +584,32 @@ def measure():
     rows = c.fetchall()
     conn.close()
 
-    distance = 0
-    for i in range(1, len(rows)):
-        distance += haversine(rows[i-1][0], rows[i-1][1], rows[i][0], rows[i][1])
-
     time_diff = end_ts - start_ts
     hours = time_diff // 3600
     minutes = (time_diff % 3600) // 60
+
+    # ── Road-matched distance via Valhalla ──
+    # match_points_valhalla returns [lat, lon] coords snapped to actual roads.
+    # Summing those gives true road distance, same as what the map draws.
+    matched = match_points_valhalla(rows)
+
+    if matched and len(matched) >= 2:
+        distance = 0
+        for i in range(1, len(matched)):
+            distance += haversine(matched[i-1][0], matched[i-1][1],
+                                  matched[i][0],   matched[i][1])
+    else:
+        # Fallback to raw GPS sum if Valhalla fails
+        distance = 0
+        for i in range(1, len(rows)):
+            distance += haversine(rows[i-1][0], rows[i-1][1],
+                                  rows[i][0],   rows[i][1])
 
     return jsonify({
         "distance_km": round(distance, 2),
         "hours": hours,
         "minutes": minutes
     })
-
 
 # ================= OSRM MAP MATCHING =================
 def match_points_valhalla(rows):
