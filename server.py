@@ -241,28 +241,44 @@ def tracking_loop():
                 state = fleet_state[bus_no]
 
                 # ================= IDLE DETECTION =================
+                # ================= IDLE DETECTION =================
+                # Movement is measured from the idle START POINT, not from the
+                # previous poll. This means GPS drift between consecutive pings
+                # never resets the timer — only genuine movement away from the
+                # parked location does.
 
                 last_loc = state.get("last_location")
 
                 if last_loc:
-                    movement = haversine(last_loc[0], last_loc[1], lat, lon)
+                    movement_from_last = haversine(last_loc[0], last_loc[1], lat, lon)
                 else:
-                    movement = 0
+                    movement_from_last = 0
 
-                if movement <= 0.30:
-
-                    if state["idle_start_time"] is None:
-                        state["idle_start_time"] = timestamp
-                        state["idle_start_location"] = (lat, lon)
-
-                    idle_duration = timestamp - state["idle_start_time"]
-                    distance = haversine(
+                # Determine movement from idle anchor point (where bus first stopped)
+                if state["idle_start_location"]:
+                    movement_from_anchor = haversine(
                         state["idle_start_location"][0],
                         state["idle_start_location"][1],
                         lat, lon
                     )
+                else:
+                    movement_from_anchor = movement_from_last
 
-                    if active_journey and idle_duration >= 3600 and distance <= 0.5:
+                # Bus is considered idle if it hasn't moved > 300m from its anchor.
+                # Using anchor (not last_loc) means GPS drift between polls
+                # never accidentally resets a genuine parked idle timer.
+                IDLE_ANCHOR_RADIUS = 0.3   # 300 metres from where bus first stopped
+
+                if movement_from_anchor <= IDLE_ANCHOR_RADIUS:
+
+                    if state["idle_start_time"] is None:
+                        # First poll where bus appears stopped — stamp the anchor
+                        state["idle_start_time"] = timestamp
+                        state["idle_start_location"] = (lat, lon)
+
+                    idle_duration = timestamp - state["idle_start_time"]
+
+                    if active_journey and idle_duration >= 3600:
                         print(f"[API JOURNEY END] {bus_no}")
                         end_journey(active_journey, timestamp)
                         active_journey = create_new_journey(bus_no, timestamp)
@@ -271,6 +287,7 @@ def tracking_loop():
                         state["idle_start_location"] = None
 
                 else:
+                    # Bus has genuinely moved away from anchor — reset timer
                     state["idle_start_time"] = None
                     state["idle_start_location"] = None
 
