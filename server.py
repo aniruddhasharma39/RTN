@@ -249,7 +249,7 @@ def tracking_loop():
                 else:
                     movement = 0
 
-                if movement <= 0.15:
+                if movement <= 0.30:
 
                     if state["idle_start_time"] is None:
                         state["idle_start_time"] = timestamp
