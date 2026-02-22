@@ -334,7 +334,7 @@ async function loadRoute(){
 
     console.log(`[RTN] Drawing polyline with ${matchedCoords.length} points`);
 
-    let totalDistance = calculateTotalDistance(raw);
+    let totalDistance = calculateTotalDistance(matchedCoords);
     let totalTime = calculateTotalTime(raw);
     let color = randomColor();
 
