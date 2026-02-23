@@ -308,5 +308,12 @@
         "operator": "RTN",
         "tracking_type": "websocket",
         "serviceNo": "rtnujjain-nagpur-0700pm"
+    },
+    {        
+        "name": "Bus 45",
+        "operator": "PWN",
+        "bus_no": "MP09DW8213",
+        "device_id": "73233",
+        "auth": "f84b89d6e76266a897096b28b3ced295e70f03cba7052552bd50ca341cb39e36afba22c0d6d3cae49230c8832970790c"
     }
 ]
