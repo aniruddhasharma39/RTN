@@ -1,137 +1,313 @@
-
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="utf-8">
-<title>Fleet Dashboard</title>
+    <meta charset="utf-8">
+    <title>Fleet Dashboard (Dark Mode)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
-<meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --panel-bg: rgba(30, 41, 59, 0.85);
+            --border-color: #334155;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+        }
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+        }
 
-<style>
-body {
-    margin:0;
-    font-family: Arial, sans-serif;
-    background:#f4f6f9;
-}
+        body {
+            background: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
 
-/* HEADER */
-header {
-    background:#1f2937;
-    color:white;
-    padding:12px 20px;
-    font-size:18px;
-    font-weight:bold;
-}
+        /* SIDEBAR PANEL */
+        .sidebar {
+            width: 340px;
+            background: var(--panel-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            z-index: 1000;
+            padding: 24px;
+            box-shadow: 4px 0 15px rgba(0,0,0,0.5);
+            overflow-y: auto;
+        }
 
-/* CONTROL PANEL */
-.controls {
-    background:white;
-    padding:12px;
-    display:flex;
-    flex-wrap:wrap;
-    gap:10px;
-    align-items:center;
-    box-shadow:0 2px 8px rgba(0,0,0,0.1);
-}
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+            background: -webkit-linear-gradient(45deg, #60a5fa, #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
 
-.controls select, .controls button {
-    padding:6px;
-    border-radius:6px;
-    border:1px solid #ccc;
-}
+        .header p {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+            margin-bottom: 24px;
+        }
 
-.controls button {
-    background:#2563eb;
-    color:white;
-    border:none;
-    cursor:pointer;
-}
+        .form-group {
+            margin-bottom: 16px;
+            display: flex;
+            flex-direction: column;
+        }
 
-.controls button:hover {
-    background:#1d4ed8;
-}
+        .form-group label {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+            font-weight: 500;
+        }
 
-/* MAP */
-#map {
-    height: calc(100vh - 120px);
-    width:100%;
-}
+        select, button {
+            background: var(--bg-color);
+            color: var(--text-main);
+            border: 1px solid var(--border-color);
+            padding: 10px 12px;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            outline: none;
+            transition: all 0.2s ease;
+        }
 
-/* MOBILE */
-@media(max-width:768px){
-    .controls {
-        flex-direction:column;
-        align-items:stretch;
-    }
+        select:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+        }
 
-    #map {
-        height: calc(100vh - 180px);
-    }
-}
-</style>
+        button {
+            background: var(--accent);
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            margin-top: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+        }
+
+        button:hover {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+        }
+
+        .export-btn {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+            margin-top: auto; /* push to bottom */
+            padding: 8px;
+            font-size: 0.85rem;
+        }
+        .export-btn:hover {
+            background: var(--border-color);
+            color: var(--text-main);
+        }
+
+        /* STATS CARD */
+        .stats-card {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 16px;
+            margin-top: 24px;
+            display: none;
+            animation: fadeIn 0.4s ease forwards;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .stats-title {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 0.95rem;
+        }
+        .stat-row span:last-child {
+            font-weight: 600;
+            color: var(--accent);
+        }
+
+        /* MAP */
+        #map-container {
+            flex: 1;
+            position: relative;
+        }
+        #map {
+            width: 100%;
+            height: 100%;
+            background: #1a1a1a;
+        }
+
+        /* LEAFLET DARK MODE ADJUSTMENTS */
+        .leaflet-container {
+            background: #0f172a;
+        }
+        .leaflet-popup-content-wrapper, .leaflet-popup-tip {
+            background: var(--panel-bg);
+            color: var(--text-main);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            backdrop-filter: blur(8px);
+            border: 1px solid var(--border-color);
+        }
+        .leaflet-popup-content b {
+            color: var(--accent);
+        }
+
+        /* MOBILE RESPONSIVE */
+        @media(max-width: 768px){
+            body {
+                flex-direction: column;
+            }
+            .sidebar {
+                width: 100%;
+                height: auto;
+                max-height: 45vh;
+                border-right: none;
+                border-bottom: 1px solid var(--border-color);
+                padding: 16px;
+            }
+            #map-container {
+                height: 55vh;
+            }
+        }
+    </style>
 </head>
 <body>
 
-<header>Fleet Monitoring Dashboard</header>
+<div class="sidebar">
+    <div class="header">
+        <h1>Fleet Monitor</h1>
+        <p>Live Tracking & History</p>
+    </div>
 
-<div class="controls">
-    <select id="modeSelect">
-        <option value="single">Single Bus</option>
-        <option value="all">All Buses</option>
-    </select>
+    <div class="form-group">
+        <label>View Mode</label>
+        <select id="modeSelect">
+            <option value="single">Single Bus History</option>
+            <option value="all">Fleet Overview (Date)</option>
+        </select>
+    </div>
 
-    <select id="busSelect"></select>
+    <div class="form-group" id="busGroup">
+        <label>Select Vehicle</label>
+        <select id="busSelect"></select>
+    </div>
 
-    <select id="dateSelect"></select>
+    <div class="form-group">
+        <label>Journey Date</label>
+        <select id="dateSelect"></select>
+    </div>
 
-    <button onclick="loadRoute()">Load</button>
+    <button onclick="loadRoute()">Load Dashboard</button>
+
+    <div class="stats-card" id="statsCard">
+        <div class="stats-title">Journey Metrics</div>
+        <div class="stat-row">
+            <span>Total Distance</span>
+            <span id="statDistance">-- km</span>
+        </div>
+        <div class="stat-row">
+            <span>Duration</span>
+            <span id="statDuration">-- h -- m</span>
+        </div>
+    </div>
+
+    <div class="stats-card" id="customStatsCard" style="display:none; border-color: var(--warning);">
+        <div class="stats-title" style="color:var(--warning)">Custom Measurement</div>
+        <div class="stat-row">
+            <span>Distance</span>
+            <span id="cStatDistance" style="color:var(--warning)">-- km</span>
+        </div>
+        <div class="stat-row">
+            <span>Time</span>
+            <span id="cStatDuration" style="color:var(--warning)">-- h -- m</span>
+        </div>
+        <button style="background:var(--warning); margin-top:12px; font-size:0.8rem;" onclick="clearMeasurement()">Clear</button>
+    </div>
+
+    <button class="export-btn" onclick="exportData()">⬇ Export Raw Data</button>
 </div>
 
-<div id="map"></div>
+<div id="map-container">
+    <div id="map"></div>
+</div>
 
 <script>
-
 let map = L.map('map').setView([20,78],5);
-let initialZoomDone = false;
-
 let layers = [];
-let selectedStops = [];
 let selectedPoints = [];
-
-let currentRouteData = [];
 let busLabelMap = {};
 
-const osm = L.tileLayer(
-'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-{ attribution:'© OpenStreetMap' }
+// CartoDB Dark Matter for sleek backend
+const darkMap = L.tileLayer(
+    'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', 
+    { attribution: '© OpenStreetMap contributors © CARTO' }
 ).addTo(map);
 
 const satellite = L.tileLayer(
-'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-{ attribution:'© Esri' }
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    { attribution: '© Esri' }
 );
-
-L.control.layers({"Street":osm,"Satellite":satellite}).addTo(map);
+L.control.layers({"Dark Map": darkMap, "Satellite": satellite}).addTo(map);
 
 function clearMap(){
-    layers.forEach(l=>map.removeLayer(l));
-    layers=[];
-    selectedStops=[];
+    layers.forEach(l => map.removeLayer(l));
+    layers = [];
+    selectedPoints = [];
+    document.getElementById('customStatsCard').style.display = 'none';
 }
 
 function createBusIcon(color){
     return L.divIcon({
         html: `<div style="
-            width:40px;
-            height:20px;
+            width:40px; height:20px;
             background:${color};
             mask:url('/static/bus.svg') no-repeat center;
             -webkit-mask:url('/static/bus.svg') no-repeat center;
             mask-size:contain;
             -webkit-mask-size:contain;
+            filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.5));
         "></div>`,
         className:'',
         iconSize:[40,20],
@@ -139,83 +315,11 @@ function createBusIcon(color){
     });
 }
 
-async function loadBuses(){
-
-    let buses = await fetch('/buses').then(r=>r.json());
-
-    let busSelect = document.getElementById('busSelect');
-
-    busSelect.innerHTML='';
-
-    busLabelMap = {};   // reset
-
-    buses.forEach(b=>{
-
-        busLabelMap[b.id] = b.label;   // ⭐ THIS WAS MISSING
-
-        let opt=document.createElement('option');
-
-        opt.value=b.id;
-
-        opt.textContent=b.label;
-
-        busSelect.appendChild(opt);
-
-    });
-
+function randomColor(){
+    const hues = [210, 280, 150, 320, 45, 190]; // nice vibrant colors
+    const rHue = hues[Math.floor(Math.random() * hues.length)] + Math.floor(Math.random() * 30);
+    return `hsl(${rHue}, 80%, 65%)`;
 }
-
-
-    async function loadDates(){
-
-    let bus=document.getElementById('busSelect').value;
-
-    if(!bus) return;
-
-    let dates=await fetch(`/dates/${bus}`).then(r=>r.json());
-
-    let dateSelect=document.getElementById('dateSelect');
-    dateSelect.innerHTML='';
-
-    if(!dates || dates.length===0){
-        let opt=document.createElement('option');
-        opt.value="";
-        opt.textContent="No Journeys Found";
-        dateSelect.appendChild(opt);
-        return;
-    }
-
-    dates.forEach(d=>{
-        let [y,m,day]=d.split("-");
-        let formatted=`${day}-${m}-${y}`;
-
-        let opt=document.createElement('option');
-        opt.value=d;
-        opt.textContent=formatted;
-        dateSelect.appendChild(opt);
-    });
-}
-
-
-document.getElementById('busSelect')
-.addEventListener('change', async ()=>{
-    await loadDates();
-    focusOnBus();
-});
-
-document.getElementById('modeSelect')
-.addEventListener('change', async function(){
-
-    let mode=this.value;
-
-    if(mode==='all'){
-        document.getElementById('busSelect').style.display='none';
-        await loadAllDates();
-    } else {
-        document.getElementById('busSelect').style.display='inline-block';
-        await loadDates();
-    }
-});
 
 function formatTimestamp(ts){
     let date = new Date(ts * 1000);
@@ -224,421 +328,73 @@ function formatTimestamp(ts){
     let year = date.getFullYear();
     let hours = String(date.getHours()).padStart(2,'0');
     let minutes = String(date.getMinutes()).padStart(2,'0');
-
-    return `${day}-${month}-${year} ${hours}:${minutes}`;
+    return `${day}/${month}/${year} ${hours}:${minutes}`;
 }
 
+async function loadBuses(){
+    let buses = await fetch('/buses').then(r=>r.json());
+    let busSelect = document.getElementById('busSelect');
+    busSelect.innerHTML = '';
+    busLabelMap = {};
 
-
-async function focusOnBus(){
-
-    let bus=document.getElementById('busSelect').value;
-
-    let date=document.getElementById('dateSelect').value;
-
-    if(!date) return;
-
-    let result =
-    await fetch(`/route/${bus}/${date}`)
-    .then(r=>r.json());
-
-    let data = result.points;
-
-    if(data && data.length>0){
-
-        let last=data[data.length-1];
-
-        map.setView([last[0],last[1]],13);
-
-    }
+    buses.forEach(b => {
+        busLabelMap[b.id] = b.label;
+        let opt = document.createElement('option');
+        opt.value = b.id;
+        opt.textContent = b.label;
+        busSelect.appendChild(opt);
+    });
 }
 
-
-async function loadAllDates(){
-    let dates = await fetch('/all-dates').then(r=>r.json());
+async function loadDates(){
+    let bus = document.getElementById('busSelect').value;
+    if(!bus) return;
+    let dates = await fetch(`/dates/${bus}`).then(r=>r.json());
+    
     let dateSelect = document.getElementById('dateSelect');
-    dateSelect.innerHTML='';
+    dateSelect.innerHTML = '';
+    
+    if(!dates || dates.length === 0){
+        let opt = document.createElement('option');
+        opt.value = "";
+        opt.textContent = "No Journeys Found";
+        dateSelect.appendChild(opt);
+        return;
+    }
 
-    dates.forEach(d=>{
-        let [y,m,day]=d.split("-");
-        let formatted=`${day}-${m}-${y}`;
-
-        let opt=document.createElement('option');
-        opt.value=d;
-        opt.textContent=formatted;
+    dates.forEach(d => {
+        let [y,m,day] = d.split("-");
+        let opt = document.createElement('option');
+        opt.value = d;
+        opt.textContent = `${day}/${m}/${y}`;
         dateSelect.appendChild(opt);
     });
 }
 
-
-function makeSelectable(marker, tripPoint){
-
-    marker.tripPoint = tripPoint;
-
-    marker.on("click", function(e){
-
-        e.originalEvent.stopPropagation();
-
-        // already selected → deselect
-        if(marker.selected){
-
-            marker.selected = false;
-
-            marker.setStyle?.({
-                color: marker.defaultColor,
-                weight:1
-            });
-
-            selectedPoints =
-                selectedPoints.filter(p => p.marker !== marker);
-
-            return;
-        }
-
-        // if already 2 selected → remove first
-        if(selectedPoints.length === 2){
-
-            let old = selectedPoints.shift();
-
-            old.marker.selected = false;
-
-            old.marker.setStyle?.({
-                color: old.marker.defaultColor,
-                weight:1
-            });
-
-        }
-
-        // select new
-        marker.selected = true;
-
-        marker.setStyle?.({
-            color:"black",
-            weight:3
-        });
-
-        selectedPoints.push({
-
-            marker: marker,
-
-            point: tripPoint
-
-        });
-
-        // when exactly 2 selected → measure
-        if(selectedPoints.length === 2){
-
-            measureDistanceTime();
-
-        }
-
+async function loadAllDates(){
+    let dates = await fetch('/all-dates').then(r=>r.json());
+    let dateSelect = document.getElementById('dateSelect');
+    dateSelect.innerHTML = '';
+    dates.forEach(d => {
+        let [y,m,day] = d.split("-");
+        let opt = document.createElement('option');
+        opt.value = d;
+        opt.textContent = `${day}/${m}/${y}`;
+        dateSelect.appendChild(opt);
     });
-
 }
 
-async function measureDistanceTime(){
-
-    let bus =
-        document.getElementById('busSelect').value;
-
-    let date =
-        document.getElementById('dateSelect').value;
-
-    let start =
-        selectedPoints[0].point.timestamp;
-
-    let end =
-        selectedPoints[1].point.timestamp;
-
-    if(start > end){
-
-        [start,end] = [end,start];
-
+document.getElementById('busSelect').addEventListener('change', loadDates);
+document.getElementById('modeSelect').addEventListener('change', async function(){
+    let mode = this.value;
+    if(mode === 'all'){
+        document.getElementById('busGroup').style.display = 'none';
+        await loadAllDates();
+    } else {
+        document.getElementById('busGroup').style.display = 'flex';
+        await loadDates();
     }
-
-    let result = await fetch("/measure",{
-
-        method:"POST",
-
-        headers:{
-            "Content-Type":"application/json"
-        },
-
-        body:JSON.stringify({
-
-            bus_no:bus,
-
-            trip_date:date,
-
-            start_ts:start,
-
-            end_ts:end
-
-        })
-
-    }).then(r=>r.json());
-
-    alert(
-`Distance: ${result.distance_km} km
-Time: ${result.hours}h ${result.minutes}m`
-    );
-
-}
-
-
-
-
-async function loadRoute(){
-
-    clearMap();
-
-    let mode=document.getElementById('modeSelect').value;
-
-    if(mode==='all'){
-        loadAllBuses();
-        return;
-    }
-
-    let bus=document.getElementById('busSelect').value;
-    let date=document.getElementById('dateSelect').value;
-
-    // RAW DATA
-    let result =
-    await fetch(`/route/${bus}/${date}`)
-    .then(r=>r.json());
-    
-    let raw = result.points;
-    
-    let journeyEnded =
-    result.ended;
-
-
-    if(!raw || raw.length===0) return;
-
-    // GET MATCHED ROUTE
-    let matchedCoords =
-    await fetch(`${window.location.origin}/route-matched/${bus}/${date}`)
-    .then(r=>r.json());
-    let totalDistance = calculateTotalDistance(raw);
-    if(!matchedCoords || matchedCoords.length===0){
-    
-        console.log("OSRM failed — using raw path");
-    
-        matchedCoords = raw.map(r => [r[0], r[1]]);
-    }
-
-
-
-    let totalTime = calculateTotalTime(raw);
-
-    let color = randomColor();
-
-    // ROUTE LINE
-    let line=L.polyline(matchedCoords,{
-        color:color,
-        weight:4
-    }).addTo(map);
-
-    layers.push(line);
-
-    // START MARKER
-    let start=L.circleMarker(matchedCoords[0],{
-
-        radius:7,
-        color:"green",
-        fillColor:"green",
-        fillOpacity:1
-
-    })
-    .bindPopup(
-    `<b>Journey Start</b><br>
-    Time: ${formatTimestamp(raw[0][2])}`
-    )
-    .addTo(map);
-
-    start.defaultColor="green";
-
-    makeSelectable(start,{
-        lat:raw[0][0],
-        lon:raw[0][1],
-        timestamp:raw[0][2]
-    });
-
-    layers.push(start);
-
-
-    // BUS MARKER
-    let busMarker=L.marker(
-
-    matchedCoords[matchedCoords.length-1],
-
-    {icon:createBusIcon(color)}
-
-)
-.bindTooltip(
-`<b>${busLabelMap[bus] || bus}</b><br>
-Distance: ${totalDistance} km<br>
-Time: ${totalTime}`
-)
-.addTo(map);
-
-busMarker.defaultColor=color;
-
-let last=raw[raw.length-1];
-
-makeSelectable(busMarker,{
-
-    lat:last[0],
-    lon:last[1],
-    timestamp:last[2]
-
 });
-
-layers.push(busMarker);
-
-// ================= STOP DETECTION =================
-
-// ================= STOP DETECTION =================
-
-let stopStartIndex = null;
-
-for(let i=1;i<raw.length;i++){
-
-    let dist = haversine(
-        raw[i-1][0],
-        raw[i-1][1],
-        raw[i][0],
-        raw[i][1]
-    );
-
-    if(dist <= 0.05){
-
-        if(stopStartIndex === null){
-
-            stopStartIndex = i-1;
-
-        }
-
-    }
-    else{
-
-        if(stopStartIndex !== null){
-
-            let duration =
-                raw[i-1][2] -
-                raw[stopStartIndex][2];
-
-            if(duration >= 120){
-
-                let stopTime = formatTimestamp(raw[stopStartIndex][2]);
-
-                let stopDurationMinutes =
-                Math.floor(duration/60);
-                
-                let stop=L.circleMarker(
-                    [
-                        raw[i-1][0],
-                        raw[i-1][1]
-                    ],
-                    {
-                        radius:7,
-                        color:"orange",
-                        fillColor:"orange",
-                        fillOpacity:1
-                    }
-                )
-                .bindPopup(
-                `<b>Stop Point</b><br>
-                Arrival: ${stopTime}<br>
-                Duration: ${stopDurationMinutes} min`
-                )
-                .addTo(map);
-
-                
-                stop.defaultColor="orange";
-                
-                // ⭐ THIS IS THE MISSING LINE — CRITICAL
-                makeSelectable(stop,{
-                    lat:raw[i-1][0],
-                    lon:raw[i-1][1],
-                    timestamp:raw[i-1][2]
-                });
-                
-                layers.push(stop);
-
-
-            }
-
-            stopStartIndex=null;
-
-        }
-
-    }
-
-}
-
-// ================= END POINT =================
-if(journeyEnded){
-
-    let lastIndex=raw.length-1;
-
-    let end=L.circleMarker(
-        [raw[lastIndex][0],raw[lastIndex][1]],
-        {
-            radius:8,
-            color:"red",
-            fillColor:"red",
-            fillOpacity:1
-        }
-    )
-    .bindPopup(
-    `<b>Journey End</b><br>
-    Time: ${formatTimestamp(raw[lastIndex][2])}`
-    )
-    .addTo(map);
-
-    end.defaultColor="red";
-
-    makeSelectable(end,{
-        lat:raw[lastIndex][0],
-        lon:raw[lastIndex][1],
-        timestamp:raw[lastIndex][2]
-    });
-
-    layers.push(end);
-
-}
-
-// ✅ THIS LINE MUST BE OUTSIDE
-map.fitBounds(line.getBounds());
-}
-
-function isStop(index,data){
-    if(index===0) return false;
-    return (data[index][2]-data[index-1][2])>=120;
-}
-
-
-
-async function measure(){
-    let bus=document.getElementById('busSelect').value;
-    let date=document.getElementById('dateSelect').value;
-
-    let result=await fetch('/measure',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({
-            bus_no:bus,
-            trip_date:date,
-            start_ts:selectedStops[0][2],
-            end_ts:selectedStops[1][2]
-        })
-    }).then(r=>r.json());
-
-    alert(`Distance: ${result.distance_km} km\nTime: ${result.hours}h ${result.minutes}m`);
-
-    selectedStops=[];
-}
 
 function calculateTotalDistance(data){
     let d=0;
@@ -652,7 +408,7 @@ function calculateTotalTime(data){
     let diff=data[data.length-1][2]-data[0][2];
     let h=Math.floor(diff/3600);
     let m=Math.floor((diff%3600)/60);
-    return `${h}h ${m}m`;
+    return {h, m};
 }
 
 function haversine(lat1, lon1, lat2, lon2){
@@ -666,138 +422,205 @@ function haversine(lat1, lon1, lat2, lon2){
     return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
 }
 
-function randomColor(){
-    return '#'+Math.floor(Math.random()*16777215).toString(16);
-}
-
-// ================= DIRECTION FILTER =================
-// Removes fake U-turn loops caused by GPS jumping to opposite lane
-function filterByDirection(points){
-
-    if(points.length < 3) return points;
-
-    let filtered = [points[0]];
-
-    for(let i=1;i<points.length-1;i++){
-
-        let prev = filtered[filtered.length-1];
-        let curr = points[i];
-        let next = points[i+1];
-
-        let bearing1 = getBearing(prev, curr);
-        let bearing2 = getBearing(curr, next);
-
-        let diff = Math.abs(bearing1 - bearing2);
-
-        if(diff > 180) diff = 360 - diff;
-
-        // Reject reverse direction (>120° change)
-        if(diff < 120){
-
-            filtered.push(curr);
-
+function makeSelectable(marker, tripPoint){
+    marker.tripPoint = tripPoint;
+    marker.on("click", function(e){
+        e.originalEvent.stopPropagation();
+        
+        if(marker.selected){
+            marker.selected = false;
+            marker.setStyle?.({color: marker.defaultColor, weight:1});
+            selectedPoints = selectedPoints.filter(p => p.marker !== marker);
+            if(selectedPoints.length < 2) document.getElementById('customStatsCard').style.display = 'none';
+            return;
         }
 
-    }
-
-    filtered.push(points[points.length-1]);
-
-    return filtered;
-}
-
-
-// ================= DISTANCE FILTER =================
-// Removes GPS jitter within 20 meters
-function filterByDistance(points){
-
-    if(points.length === 0) return points;
-
-    let filtered = [points[0]];
-
-    for(let i = 1; i < points.length; i++){
-
-        let last = filtered[filtered.length-1];
-
-        let d = haversine(
-            last[0], last[1],
-            points[i][0], points[i][1]
-        );
-
-        // CRITICAL FIX: minimum 15 meters
-        if(d > 0.015){
-
-            filtered.push(points[i]);
-
+        if(selectedPoints.length === 2){
+            let old = selectedPoints.shift();
+            old.marker.selected = false;
+            old.marker.setStyle?.({color: old.marker.defaultColor, weight:1});
         }
 
+        marker.selected = true;
+        marker.setStyle?.({color:"white", weight:3});
+        selectedPoints.push({marker: marker, point: tripPoint});
+
+        if(selectedPoints.length === 2){
+            measureDistanceTime();
+        }
+    });
+}
+
+function clearMeasurement() {
+    selectedPoints.forEach(p => {
+        p.marker.selected = false;
+        p.marker.setStyle?.({color: p.marker.defaultColor, weight:1});
+    });
+    selectedPoints = [];
+    document.getElementById('customStatsCard').style.display = 'none';
+}
+
+async function measureDistanceTime(){
+    let bus = document.getElementById('busSelect').value;
+    let date = document.getElementById('dateSelect').value;
+    let start = selectedPoints[0].point.timestamp;
+    let end = selectedPoints[1].point.timestamp;
+
+    if(start > end){ [start,end] = [end,start]; }
+
+    let result = await fetch("/measure", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({bus_no: bus, trip_date: date, start_ts: start, end_ts: end})
+    }).then(r=>r.json());
+
+    document.getElementById('cStatDistance').innerText = result.distance_km + ' km';
+    document.getElementById('cStatDuration').innerText = result.hours + 'h ' + result.minutes + 'm';
+    document.getElementById('customStatsCard').style.display = 'block';
+}
+
+async function loadRoute(){
+    clearMap();
+    let mode = document.getElementById('modeSelect').value;
+    if(mode === 'all'){
+        loadAllBuses();
+        return;
     }
 
-    return filtered;
+    let bus = document.getElementById('busSelect').value;
+    let date = document.getElementById('dateSelect').value;
+    
+    // UI update
+    document.getElementById('statsCard').style.display = 'none';
+    
+    let result = await fetch(`/route/${bus}/${date}`).then(r=>r.json());
+    let raw = result.points;
+    let journeyEnded = result.ended;
+
+    if(!raw || raw.length === 0) {
+        alert("No tracking data available for this journey.");
+        return;
+    }
+
+    let matchedCoords = await fetch(`${window.location.origin}/route-matched/${bus}/${date}`).then(r=>r.json());
+    let totalDistance = calculateTotalDistance(raw);
+    let timeObj = calculateTotalTime(raw);
+    
+    if(!matchedCoords || matchedCoords.length === 0){
+        matchedCoords = raw.map(r => [r[0], r[1]]);
+    }
+
+    // Update Stats Card
+    document.getElementById('statDistance').innerText = totalDistance + ' km';
+    document.getElementById('statDuration').innerText = `${timeObj.h}h ${timeObj.m}m`;
+    document.getElementById('statsCard').style.display = 'block';
+
+    let color = randomColor();
+
+    let line = L.polyline(matchedCoords, {color: color, weight:4, opacity:0.8}).addTo(map);
+    layers.push(line);
+
+    // Start Marker
+    let start = L.circleMarker(matchedCoords[0], {radius:7, color:"#10b981", fillColor:"#10b981", fillOpacity:1})
+        .bindPopup(`<b>Journey Start</b><br>Time: ${formatTimestamp(raw[0][2])}`).addTo(map);
+    start.defaultColor = "#10b981";
+    makeSelectable(start, {lat:raw[0][0], lon:raw[0][1], timestamp:raw[0][2]});
+    layers.push(start);
+
+    // Bus Marker
+    let busMarker = L.marker(matchedCoords[matchedCoords.length-1], {icon:createBusIcon(color)})
+        .bindPopup(`<b>${busLabelMap[bus] || bus}</b><br>Distance: ${totalDistance} km<br>Status: ${journeyEnded ? 'Ended' : 'Active'}`).addTo(map);
+    busMarker.defaultColor = color;
+    makeSelectable(busMarker, {lat:raw[raw.length-1][0], lon:raw[raw.length-1][1], timestamp:raw[raw.length-1][2]});
+    layers.push(busMarker);
+
+    // Stops Detection
+    let stopStartIndex = null;
+    for(let i=1; i<raw.length; i++){
+        let dist = haversine(raw[i-1][0], raw[i-1][1], raw[i][0], raw[i][1]);
+        if(dist <= 0.05){
+            if(stopStartIndex === null) stopStartIndex = i-1;
+        } else {
+            if(stopStartIndex !== null){
+                let duration = raw[i-1][2] - raw[stopStartIndex][2];
+                if(duration >= 120) {
+                    let stopTime = formatTimestamp(raw[stopStartIndex][2]);
+                    let dMins = Math.floor(duration/60);
+                    let stop = L.circleMarker([raw[i-1][0], raw[i-1][1]], {radius:6, color:"#f59e0b", fillColor:"#f59e0b", fillOpacity:1})
+                        .bindPopup(`<b>Stop</b><br>Arrival: ${stopTime}<br>Duration: ${dMins} min`).addTo(map);
+                    stop.defaultColor = "#f59e0b";
+                    makeSelectable(stop, {lat:raw[i-1][0], lon:raw[i-1][1], timestamp:raw[i-1][2]});
+                    layers.push(stop);
+                }
+                stopStartIndex = null;
+            }
+        }
+    }
+
+    if(journeyEnded){
+        let lastIn = raw.length-1;
+        let end = L.circleMarker([raw[lastIn][0], raw[lastIn][1]], {radius:8, color:"#ef4444", fillColor:"#ef4444", fillOpacity:1})
+            .bindPopup(`<b>Journey End</b><br>Time: ${formatTimestamp(raw[lastIn][2])}`).addTo(map);
+        end.defaultColor = "#ef4444";
+        makeSelectable(end, {lat:raw[lastIn][0], lon:raw[lastIn][1], timestamp:raw[lastIn][2]});
+        layers.push(end);
+    }
+    
+    map.fitBounds(line.getBounds(), {padding: [50, 50]});
 }
-
-
-// ================= BEARING FUNCTION =================
-// Calculates vehicle direction
-function getBearing(a,b){
-
-    let lat1=a[0]*Math.PI/180;
-    let lat2=b[0]*Math.PI/180;
-    let dLon=(b[1]-a[1])*Math.PI/180;
-
-    let y=Math.sin(dLon)*Math.cos(lat2);
-    let x=Math.cos(lat1)*Math.sin(lat2) -
-          Math.sin(lat1)*Math.cos(lat2)*Math.cos(dLon);
-
-    return (Math.atan2(y,x)*180/Math.PI + 360) % 360;
-}
-
 
 async function loadAllBuses(){
-
     clearMap();
-
-    let date=document.getElementById('dateSelect').value;
-
+    let date = document.getElementById('dateSelect').value;
     if(!date) return;
+    
+    document.getElementById('statsCard').style.display = 'none';
 
-    let buses=await fetch('/buses').then(r=>r.json());
+    let buses = await fetch('/buses').then(r=>r.json());
+    let bounds = L.latLngBounds();
 
-    for(let b of buses){
+    for (let b of buses) {
+        let bus = b.id;
+        try {
+            let result = await fetch(`/route/${bus}/${date}`).then(r=>r.json());
+            let data = result.points;
+            
+            if(!data || data.length === 0) continue;
+            
+            let coords;
+            try {
+                let matchedCoords = await fetch(`${window.location.origin}/route-matched/${bus}/${date}`).then(r=>r.json());
+                if(matchedCoords && matchedCoords.length > 0){
+                    coords = matchedCoords;
+                } else {
+                    coords = data.map(r=>[r[0], r[1]]);
+                }
+            } catch(e) {
+                coords = data.map(r=>[r[0], r[1]]);
+            }
 
-        let bus = b.id;  // ⭐ FIX
+            let color = randomColor();
 
-        let result =
-        await fetch(`/route/${bus}/${date}`)
-        .then(r=>r.json());
-        
-        let data = result.points;
-        
-        if(!data || data.length===0) continue;
-        
-        let coords=data.map(r=>[r[0],r[1]]);
+            let line = L.polyline(coords, {color: color, weight: 3, opacity: 0.8}).addTo(map);
+            layers.push(line);
+            bounds.extend(line.getBounds());
 
-
-        let color=randomColor();
-
-        let line=L.polyline(coords,{color:color}).addTo(map);
-
-        layers.push(line);
-
-        let marker=L.marker(coords[coords.length-1],
-            {icon:createBusIcon(color)}
-        )
-        .bindTooltip(busLabelMap[bus] || bus)  // ⭐ FIX
-        .addTo(map);
-
-        layers.push(marker);
-
+            let marker = L.marker(coords[coords.length-1], {icon:createBusIcon(color)})
+                .bindTooltip(busLabelMap[bus] || bus).addTo(map);
+            layers.push(marker);
+            
+            if(bounds.isValid()) map.fitBounds(bounds, {padding: [50, 50]});
+        } catch(e) {
+            console.error('Error loading data for bus ' + bus, e);
+        }
     }
+}
 
+function exportData() {
+    window.location.href = '/export-data';
 }
 
 loadBuses().then(loadDates);
-
-
 </script>
 </body>
 </html>
