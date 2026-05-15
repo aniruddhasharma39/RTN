@@ -498,7 +498,12 @@ def export_data():
     return jsonify({"journeys_count": len(journeys), "journeys": journeys})
 
 if __name__ == "__main__":
-    init_db()
+    try:
+        init_db()
+    except Exception as e:
+        print(f"[STARTUP ERROR] MongoDB connection failed: {e}")
+        print(f"[STARTUP ERROR] MONGO_URI = {os.getenv('MONGO_URI', 'NOT SET')}")
     threading.Thread(target=tracking_loop, daemon=True).start()
     port = int(os.environ.get("PORT", 5000))
+    print(f"[STARTUP] Starting server on port {port}")
     app.run(host="0.0.0.0", port=port)
