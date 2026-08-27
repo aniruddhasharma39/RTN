@@ -63,6 +63,7 @@
             margin-bottom: 4px;
             background: -webkit-linear-gradient(45deg, #60a5fa, #c084fc);
             -webkit-background-clip: text;
+            background-clip: text;
             -webkit-text-fill-color: transparent;
         }
 
@@ -494,9 +495,6 @@ async function loadRoute(){
         loadAllBuses(shouldFitBounds);
         return;
     }
-
-    let bus = document.getElementById('busSelect').value;
-    let date = document.getElementById('dateSelect').value;
     
     // UI update
     document.getElementById('statsCard').style.display = 'none';
