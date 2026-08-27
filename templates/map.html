@@ -278,6 +278,7 @@ let map = L.map('map').setView([20,78],5);
 let layers = [];
 let selectedPoints = [];
 let busLabelMap = {};
+let currentViewConfig = "";
 
 // Esri Dark Gray for sleek backend without API keys
 const darkMap = L.tileLayer(
@@ -480,10 +481,17 @@ async function measureDistanceTime(){
 }
 
 async function loadRoute(){
-    clearMap();
     let mode = document.getElementById('modeSelect').value;
+    let bus = mode === 'single' ? document.getElementById('busSelect').value : 'all';
+    let date = document.getElementById('dateSelect').value;
+    
+    let newConfig = `${mode}-${bus}-${date}`;
+    let shouldFitBounds = (newConfig !== currentViewConfig);
+    currentViewConfig = newConfig;
+
+    clearMap();
     if(mode === 'all'){
-        loadAllBuses();
+        loadAllBuses(shouldFitBounds);
         return;
     }
 
@@ -566,10 +574,12 @@ async function loadRoute(){
         layers.push(end);
     }
     
-    map.fitBounds(line.getBounds(), {padding: [50, 50]});
+    if (shouldFitBounds) {
+        map.fitBounds(line.getBounds(), {padding: [50, 50]});
+    }
 }
 
-async function loadAllBuses(){
+async function loadAllBuses(shouldFitBounds = true){
     clearMap();
     let date = document.getElementById('dateSelect').value;
     if(!date) return;
@@ -608,11 +618,13 @@ async function loadAllBuses(){
             let marker = L.marker(coords[coords.length-1], {icon:createBusIcon(color)})
                 .bindTooltip(busLabelMap[bus] || bus).addTo(map);
             layers.push(marker);
-            
-            if(bounds.isValid()) map.fitBounds(bounds, {padding: [50, 50]});
         } catch(e) {
             console.error('Error loading data for bus ' + bus, e);
         }
+    }
+
+    if(shouldFitBounds && bounds.isValid()) {
+        map.fitBounds(bounds, {padding: [50, 50]});
     }
 }
 
