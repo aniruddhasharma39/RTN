@@ -438,13 +438,10 @@ def match_points_osrm(rows):
             
         coords = ";".join([f"{r[1]},{r[0]}" for r in chunk])
         
-        # Omit timestamps to allow OSRM to map-match without strict time logic
-        # which often fails with noisy or duplicate GPS timestamps.
-        url = f"{OSRM_URL}/match/v1/driving/{coords}"
+        url = f"{OSRM_URL}/route/v1/driving/{coords}"
         params = {
             "overview": "full",
-            "geometries": "geojson",
-            "radiuses": ";".join(["100"] * len(chunk))
+            "geometries": "geojson"
         }
         
         # Implement retry logic for OSRM rate limiting
@@ -459,13 +456,12 @@ def match_points_osrm(rows):
                     
                 data = response.json()
                 
-                if "matchings" in data and len(data["matchings"]) > 0:
-                    # Get the best matching
-                    match = max(data["matchings"], key=lambda m: m.get("confidence", 0))
-                    geometry = match.get("geometry", {}).get("coordinates", [])
+                if "routes" in data and len(data["routes"]) > 0:
+                    # Get the best route
+                    geometry = data["routes"][0].get("geometry", {}).get("coordinates", [])
                     all_coords.extend([[lat, lon] for lon, lat in geometry])
                 else:
-                    # Map matching failed for this segment, use raw points
+                    # Routing failed for this segment, use raw points
                     all_coords.extend([[r[0], r[1]] for r in chunk])
                 break # Exit retry loop on success
                 
